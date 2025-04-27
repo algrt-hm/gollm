@@ -9,7 +9,7 @@ import (
 	"github.com/openai/openai-go/option"
 )
 
-func GenChatCompletionMock() *openai.ChatCompletion {
+func ChatGPTGenChatCompletionMock() *openai.ChatCompletion {
 	return &openai.ChatCompletion{
 		ID:      "chatcmpl-mock-123",
 		Object:  "chat.completion",
@@ -20,7 +20,7 @@ func GenChatCompletionMock() *openai.ChatCompletion {
 				Index: 0,
 				Message: openai.ChatCompletionMessage{
 					Role:    "assistant",
-					Content: "This is a mocked response.",
+					Content: "This is a mocked ChatGPT response.",
 				},
 				FinishReason: "stop",
 			},
@@ -33,9 +33,9 @@ func GenChatCompletionMock() *openai.ChatCompletion {
 	}
 }
 
-func ChatGPTLowerWrapper(promptText string, listModelsToggle bool, verboseToggle bool, mock bool) *openai.ChatCompletion {
+func ChatGPTLowerWrapper(promptText string, listModelsToggle bool, mock bool) *openai.ChatCompletion {
 	if mock {
-		return GenChatCompletionMock()
+		return ChatGPTGenChatCompletionMock()
 	}
 
 	client := openai.NewClient(option.WithAPIKey(GetChatGPTAPIKey()))
@@ -53,10 +53,10 @@ func ChatGPTLowerWrapper(promptText string, listModelsToggle bool, verboseToggle
 	return chatCompletion
 }
 
-func ChatGPTMiddleWrapper(promptText string, listModelsToggle bool, verboseToggle bool, mock bool) string {
+func ChatGPTMiddleWrapper(promptText string, listModelsToggle bool, mock bool) string {
 	fromTime := time.Now()
 
-	c := ChatGPTLowerWrapper(promptText, listModelsToggle, verboseToggle, mock)
+	c := ChatGPTLowerWrapper(promptText, listModelsToggle, mock)
 
 	duration := time.Since(fromTime)
 
@@ -70,7 +70,7 @@ func ChatGPTMiddleWrapper(promptText string, listModelsToggle bool, verboseToggl
 	return fmt.Sprintf("\n%s\n\n%s", status, c.Choices[0].Message.Content)
 }
 
-func ChatGPTWrapper(promptText string, listModelsToggle bool, verboseToggle bool, mock bool) string {
+func ChatGPTWrapper(promptText string, listModelsToggle bool, mock bool) string {
 	// Note that list models toggle is not used and probably should be
-	return fmt.Sprintf("# ChatGPT\n%s\n\n", ChatGPTMiddleWrapper(promptText, listModelsToggle, verboseToggle, mock))
+	return fmt.Sprintf("# ChatGPT\n%s\n\n", ChatGPTMiddleWrapper(promptText, listModelsToggle, mock))
 }

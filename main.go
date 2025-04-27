@@ -7,13 +7,13 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/glamour"
 )
 
 // Types etc
-
 type ModelResponse struct {
 	Model        string
 	TotalTokens  int
@@ -22,11 +22,11 @@ type ModelResponse struct {
 	FinishReason string
 }
 
-// Globals
-
+// Globals with various environment variable names for API keys
 const perplexityApiKey = "PERPLEXITY_API_KEY"
 const GeminiApiKey = "GEMINI_API_KEY"
 const chatGPTApiKey = "OPENAI_API_KEY"
+const cerebrasApiKey = "CEREBRAS_API_KEY"
 
 // TODO: 'finished due to: ' in Gemini output doesn't work
 
@@ -93,6 +93,10 @@ func GetChatGPTAPIKey() string {
 	return os.Getenv(chatGPTApiKey)
 }
 
+func GetCerebrasAPIKey() string {
+	return os.Getenv(cerebrasApiKey)
+}
+
 func PrintAPIKeys() {
 	fmtStr := "\nPerplexity API key is: %+v\nChatGPT API key is: %+v\nGemini API key is: %+v\n"
 	fmt.Printf(fmtStr, GetPerplexityAPIKey(), GetChatGPTAPIKey(), GetGeminiAPIKey())
@@ -120,10 +124,11 @@ func PrintUsage(connectedToInternet bool) {
 	usageFmt := `%s:
 	-c	use ChatGPT
 	-g	use Gemini
+	-h	show (this) help
+	-l	use Cerebras
 	-lg	list Gemini models
 	-p	use Perplexity
 	-t	test API keys (note: they will be displayed)
-	-h	show (this) help
 
 	API keys should be set using the environment variables below:
 
@@ -136,14 +141,19 @@ func PrintUsage(connectedToInternet bool) {
 	# For Gemini
 	export %s="your Gemini API key here"
 
+	# For Cerebras
+	export %s="your Cerebras API key here"
+
 `
 	apiKeyExtendo := "\t - You already have %s set\n"
 
 	haveGeminiAPIKey := GetGeminiAPIKey() != ""
 	havePerplexityAPIKey := GetPerplexityAPIKey() != ""
 	haveChatGPTAPIKey := GetChatGPTAPIKey() != ""
+	haveCerebrasAPIKey := GetCerebrasAPIKey() != ""
 
-	if haveGeminiAPIKey || havePerplexityAPIKey {
+	// If we have any of the keys
+	if haveGeminiAPIKey || havePerplexityAPIKey || haveChatGPTAPIKey || haveCerebrasAPIKey {
 		usageFmt += "\n\tSetup:\n"
 
 		if havePerplexityAPIKey {
@@ -158,30 +168,30 @@ func PrintUsage(connectedToInternet bool) {
 			usageFmt += fmt.Sprintf(apiKeyExtendo, GeminiApiKey)
 		}
 
+		if haveCerebrasAPIKey {
+			usageFmt += fmt.Sprintf(apiKeyExtendo, cerebrasApiKey)
+		}
+
 	}
+	// TODO: should we do something if impliedly we have none?
 
 	if connectedToInternet {
 		usageFmt += "\t - You are connected to the internet\n"
 	}
 
-	if haveChatGPTAPIKey && haveGeminiAPIKey && havePerplexityAPIKey && connectedToInternet {
+	if haveChatGPTAPIKey && haveGeminiAPIKey && havePerplexityAPIKey && haveCerebrasAPIKey && connectedToInternet {
 		usageFmt += "\t - We're ready to rumble :)\n"
 	}
 
 	usageFmt += "\n"
-	usage := fmt.Sprintf(usageFmt, os.Args[0], perplexityApiKey, chatGPTApiKey, GeminiApiKey)
+	usage := fmt.Sprintf(usageFmt, os.Args[0], perplexityApiKey, chatGPTApiKey, GeminiApiKey, cerebrasApiKey)
 	fmt.Print(usage)
 }
 
 func main() {
 	listModelsToggle := false
-	verboseToggle := true
 
-	useGemini, usePerplexity, useChatGPT := false, false, false
-
-	// Prints all arguments, including the program name
-	// fmt.Println(os.Args)
-	// fmt.Println("")
+	useGemini, usePerplexity, useChatGPT, useCerebras := false, false, false, false
 
 	// We do this here because we want the result in PrintUsage()
 	connected, err := CheckInternetHTTP()
@@ -198,7 +208,7 @@ func main() {
 		}
 
 		if strings.Contains(each, "-lg") {
-			fmt.Println(GeminiMiddleWrapper("", true, true, false))
+			fmt.Println(GeminiMiddleWrapper("", true, false))
 			os.Exit(0)
 		}
 
@@ -220,11 +230,16 @@ func main() {
 			break
 		}
 
+		if strings.Contains(each, "-l") {
+			useCerebras = true
+			fmt.Println("Using Cerebras")
+			break
+		}
 	}
 
 	// If none explicitly selected then use all
-	if !(useChatGPT || useGemini || usePerplexity) {
-		useChatGPT, useGemini, usePerplexity = true, true, true
+	if !(useChatGPT || useGemini || usePerplexity || useCerebras) {
+		useChatGPT, useGemini, usePerplexity, useCerebras = true, true, true, true
 	}
 
 	if !connected {
@@ -244,10 +259,13 @@ func main() {
 		Fatalf("Please set environment variable %s to use Perplexity", perplexityApiKey)
 	}
 
-	// --- 4. Read prompt from stdin ---
+	if useCerebras && GetCerebrasAPIKey() == "" {
+		Fatalf("Please set environment variable %s to use Cerebras", cerebrasApiKey)
+	}
+
+	// --- Read prompt from stdin ---
 	reader := bufio.NewReader(os.Stdin)
 	var promptText string
-	var outputText string
 
 	// Check if stdin is coming from a pipe or redirection
 	fileInfo, _ := os.Stdin.Stat()
@@ -266,21 +284,47 @@ func main() {
 
 	promptText = strings.TrimSpace(string(inputBytes)) // Convert bytes to string
 
+	// --- Run API calls concurrently ---
+	var wg sync.WaitGroup
+
 	if usePerplexity {
-		fmt.Println("Hitting Perplexity API ...")
-		outputText = PerplexityWrapper(promptText, false)
-		RenderWithGlamour(outputText)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			fmt.Println("Hitting Perplexity API ...")
+			RenderWithGlamour(PerplexityWrapper(promptText, false))
+		}()
 	}
 
 	if useChatGPT {
-		fmt.Println("Hitting ChatGPT API ...")
-		outputText = ChatGPTWrapper(promptText, listModelsToggle, verboseToggle, false)
-		RenderWithGlamour(outputText)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			fmt.Println("Hitting ChatGPT API ...")
+			RenderWithGlamour(ChatGPTWrapper(promptText, listModelsToggle, false))
+		}()
 	}
 
 	if useGemini {
-		fmt.Println("Hitting Gemini API ...")
-		outputText = GeminiWrapper(promptText, listModelsToggle, verboseToggle, false)
-		RenderWithGlamour(outputText)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			fmt.Println("Hitting Gemini API ...")
+			RenderWithGlamour(GeminiWrapper(promptText, listModelsToggle, false))
+		}()
 	}
+
+	if useCerebras {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			fmt.Println("Hitting Cerebras API ...")
+			RenderWithGlamour(CerebrasWrapper(promptText, listModelsToggle, false))
+		}()
+	}
+
+	// Wait here ensures main doesn't exit before goroutines finish
+	wg.Wait()
+
+	RenderWithGlamour("\n# Done\n")
 }

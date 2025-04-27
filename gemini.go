@@ -100,7 +100,7 @@ func StringifyGeminiResponse(resp *genai.GenerateContentResponse, model string) 
 
 func MockGenerateContentResponse() *genai.GenerateContentResponse {
 	// Create a mock text part
-	mockTextPart := genai.Text("This is mock generated content.")
+	mockTextPart := genai.Text("This is a mocked Gemini response.")
 
 	// Create mock content containing the text part
 	mockContent := &genai.Content{
@@ -133,7 +133,7 @@ func MockGenerateContentResponse() *genai.GenerateContentResponse {
 	return mockResponse
 }
 
-func GeminiCallAPI(modelName string, promptText string, ctx context.Context, client *genai.Client, verboseToggle bool, mock bool) (*genai.GenerateContentResponse, error) {
+func GeminiCallAPI(modelName string, promptText string, ctx context.Context, client *genai.Client, mock bool) (*genai.GenerateContentResponse, error) {
 	if mock {
 		return MockGenerateContentResponse(), nil
 	}
@@ -150,12 +150,12 @@ func GeminiCallAPI(modelName string, promptText string, ctx context.Context, cli
 }
 
 // GeminiLowerWrapper calls the Gemini API
-func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Client, verboseToggle bool, mock bool) string {
+func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Client, mock bool) string {
 	// Start the timer
 	startTime := time.Now()
 	modelName := "models/gemini-2.0-pro-exp-02-05"
 
-	resp, err := GeminiCallAPI(modelName, promptText, ctx, client, verboseToggle, mock)
+	resp, err := GeminiCallAPI(modelName, promptText, ctx, client, mock)
 
 	if err != nil {
 		Fatalf("Some issue: %s", err)
@@ -174,14 +174,14 @@ func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Cl
 	}
 }
 
-func GeminiMiddleWrapper(promptText string, listModelsToggle bool, verboseToggle bool, mock bool) string {
-	// --- 1. Get API Key ---
+func GeminiMiddleWrapper(promptText string, listModelsToggle bool, mock bool) string {
+	// --- Get API Key ---
 	apiKey := GetGeminiAPIKey()
 	if apiKey == "" {
 		Fatalf("API key not found. Please set the %s environment variable.", GeminiApiKey)
 	}
 
-	// --- 2. Set up the Gemini client ---
+	// --- Set up the Gemini client ---
 	ctx := context.Background()
 
 	// Use option.WithAPIKey to authenticate with an API key
@@ -197,11 +197,11 @@ func GeminiMiddleWrapper(promptText string, listModelsToggle bool, verboseToggle
 		return ListGeminiModels(client, ctx)
 	}
 
-	output := GeminiLowerWrapper(promptText, ctx, client, verboseToggle, mock)
+	output := GeminiLowerWrapper(promptText, ctx, client, mock)
 
 	return output
 }
 
-func GeminiWrapper(promptText string, listModelsToggle bool, verboseToggle bool, mock bool) string {
-	return fmt.Sprintf("# Gemini\n%s\n\n", GeminiMiddleWrapper(promptText, listModelsToggle, verboseToggle, mock))
+func GeminiWrapper(promptText string, listModelsToggle bool, mock bool) string {
+	return fmt.Sprintf("# Gemini\n%s\n\n", GeminiMiddleWrapper(promptText, listModelsToggle, mock))
 }
