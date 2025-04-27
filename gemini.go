@@ -161,16 +161,14 @@ func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Cl
 		Fatalf("Some issue: %s", err)
 	}
 
-	// fmt.Printf("%s: %+v", modelName, *resp.UsageMetadata)
 	buffer, finishReason, safetyRating := StringifyGeminiResponse(resp, modelName)
 	totalTokenCount := resp.UsageMetadata.TotalTokenCount
 	duration := time.Since(startTime)
 
-	// Model: sonar-pro, 135 tokens used, finished due to: length, duration: 0.199 seconds
 	if safetyRating != "" {
-		return fmt.Sprintf("\nModel: %s, %d tokens used, finished due to: %s, safety rating: %s, duration: %.3f seconds\n\n%s\n", modelName, totalTokenCount, finishReason, safetyRating, durationInSeconds(duration), buffer)
+		return fmt.Sprintf("\nModel: %s, %d tokens used, finished due to: %s, safety rating: %s, duration: %.3f seconds\n\n%s\n", modelName, totalTokenCount, finishReason, safetyRating, duration.Seconds(), buffer)
 	} else {
-		return fmt.Sprintf("\nModel: %s, %d tokens used, finished due to: %s, duration: %.3f seconds\n\n%s\n", modelName, totalTokenCount, finishReason, durationInSeconds(duration), buffer)
+		return fmt.Sprintf("\nModel: %s, %d tokens used, finished due to: %s, duration: %.3f seconds\n\n%s\n", modelName, totalTokenCount, finishReason, duration.Seconds(), buffer)
 	}
 }
 

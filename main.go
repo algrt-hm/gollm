@@ -76,11 +76,6 @@ func Fatalf(format string, a ...any) {
 	os.Exit(1)
 }
 
-func durationInSeconds(nano time.Duration) float64 {
-	const nanoDivisor float64 = 1_000_000_000
-	return float64(nano) / nanoDivisor
-}
-
 func GetPerplexityAPIKey() string {
 	return os.Getenv(perplexityApiKey)
 }

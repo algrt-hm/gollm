@@ -2,11 +2,11 @@
 
 PROJECT = gollm
 
-fmt:
-	go fmt ./*go
-
 test:
 	go test -v
+
+fmt:
+	go fmt ./*go
 
 build: build-linux build-macos build-windows
 

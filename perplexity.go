@@ -76,7 +76,7 @@ func ParsePerplexityResponse(result string) ModelResponse {
 func FmtModelResponse(response ModelResponse, duration time.Duration) string {
 	var out string
 
-	out += fmt.Sprintf("Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds\n", response.Model, response.TotalTokens, response.FinishReason, durationInSeconds(duration))
+	out += fmt.Sprintf("Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds\n", response.Model, response.TotalTokens, response.FinishReason, duration.Seconds())
 
 	// Replace e.g. [1] with [^1] in response.Content using a regex
 	re := regexp.MustCompile(`\[(\d+)\]`)

@@ -60,10 +60,8 @@ func ChatGPTMiddleWrapper(promptText string, listModelsToggle bool, mock bool) s
 
 	duration := time.Since(fromTime)
 
-	// Model: sonar-pro, 135 tokens used, finished due to: length, duration: 0.000 seconds
 	fmtStr := "Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds"
 
-	// TODO: we can use use .Seconds in other places too lol
 	status := fmt.Sprintf(fmtStr, c.Model, c.Usage.TotalTokens, c.Choices[0].FinishReason, duration.Seconds())
 
 	// TODO: need to loop through choices per the Gemini example in case we get more than one back
