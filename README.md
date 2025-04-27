@@ -38,10 +38,11 @@ cat my_document.txt | gollm "Summarize this text"
 gollm:
 	-c	use ChatGPT
 	-g	use Gemini
+	-h	show (this) help
+	-l	use Cerebras
 	-lg	list Gemini models
 	-p	use Perplexity
 	-t	test API keys (note: they will be displayed)
-	-h	show (this) help
 
 	API keys should be set using the environment variables below:
 
@@ -56,6 +57,7 @@ gollm:
 
 	# For Cerebras
 	export CEREBRAS_API_KEY="your Cerebras API key here"
+
 ```
 
 ## More bits
