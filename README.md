@@ -70,3 +70,19 @@ For installation of latest go on Ubuntu see: https://algrt.hm/2024-09-29-recent-
 
 - For GEMINI_API_KEY see: https://aistudio.google.com/app/plan_information
 - For usage of the API see: https://console.cloud.google.com/apis/api/generativelanguage.googleapis.com/metrics
+
+## FAQs
+
+*How do I set environment variables in Windows?*
+
+To make environment variables persist across sessions:
+
+1. Open System Properties:
+	* Press <kbd>Win</kbd> + <kbd>R</kbd>, type `sysdm.cpl`, and press Enter.
+	* Go to the Advanced tab.
+	* Click on Environment Variables...
+2. Add/Edit Variables:
+	* Under "User variables" (for your account) or "System variables" (for all users), click New..., enter a name and value, then click OK.
+	* To edit an existing variable, select it and click Edit...
+3. Apply Changes:
+	* Click OK on all dialogs to apply changes.
