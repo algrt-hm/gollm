@@ -2,8 +2,11 @@
 
 PROJECT = gollm
 
-test:
+test-verbose:
 	go test -v
+
+test:
+	go test
 
 fmt:
 	go fmt ./*go

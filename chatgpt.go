@@ -3,11 +3,47 @@ package main
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 )
+
+func ListOpenAIModels() string {
+	client := openai.NewClient(option.WithAPIKey(GetChatGPTAPIKeyOrBail()))
+
+	// context.TODO() is appropriate for simple short-lived API calls
+	// where e.g. no timeout is needed
+	resp, err := client.Models.List(context.TODO())
+
+	if err != nil {
+		Fatalf("Error listing models: %v", err)
+	}
+
+	// Sort models by creation timestamp (descending)
+	sort.SliceStable(resp.Data, func(i, j int) bool {
+		return resp.Data[i].Created > resp.Data[j].Created
+	})
+
+	// strings.Builder is an efficient way to build strings incrementally
+	// It minimizes memory copying and is more efficient than string concatenation
+	// The zero value is ready to use; no initialization needed
+	var builder strings.Builder
+	builder.WriteString("Available OpenAI Models:\n")
+	for _, model := range resp.Data {
+		// Convert Unix timestamp to a readable time format
+		createdTime := time.Unix(int64(model.Created), 0).Format(time.RFC1123)
+		// Only print Owned by: if not "system"
+		if model.OwnedBy != "system" {
+			builder.WriteString(fmt.Sprintf("- %s: Owned by: %s, Created: %s\n", model.ID, model.OwnedBy, createdTime))
+		} else {
+			builder.WriteString(fmt.Sprintf("- %s: Created: %s\n", model.ID, createdTime))
+		}
+	}
+	return builder.String()
+}
 
 func ChatGPTGenChatCompletionMock() *openai.ChatCompletion {
 	return &openai.ChatCompletion{
@@ -24,6 +60,14 @@ func ChatGPTGenChatCompletionMock() *openai.ChatCompletion {
 				},
 				FinishReason: "stop",
 			},
+			{
+				Index: 1,
+				Message: openai.ChatCompletionMessage{
+					Role:    "assistant",
+					Content: "This is another mocked ChatGPT response.",
+				},
+				FinishReason: "stop",
+			},
 		},
 		Usage: openai.CompletionUsage{
 			PromptTokens:     10,
@@ -33,12 +77,12 @@ func ChatGPTGenChatCompletionMock() *openai.ChatCompletion {
 	}
 }
 
-func ChatGPTLowerWrapper(promptText string, listModelsToggle bool, mock bool) *openai.ChatCompletion {
+func ChatGPTLowerWrapper(promptText string, mock bool) *openai.ChatCompletion {
 	if mock {
 		return ChatGPTGenChatCompletionMock()
 	}
 
-	client := openai.NewClient(option.WithAPIKey(GetChatGPTAPIKey()))
+	client := openai.NewClient(option.WithAPIKey(GetChatGPTAPIKeyOrBail()))
 	chatCompletion, err := client.Chat.Completions.New(context.TODO(), openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(promptText),
@@ -53,22 +97,44 @@ func ChatGPTLowerWrapper(promptText string, listModelsToggle bool, mock bool) *o
 	return chatCompletion
 }
 
-func ChatGPTMiddleWrapper(promptText string, listModelsToggle bool, mock bool) string {
+func ChatGPTMiddleWrapper(promptText string, mock bool) string {
 	fromTime := time.Now()
 
-	c := ChatGPTLowerWrapper(promptText, listModelsToggle, mock)
+	c := ChatGPTLowerWrapper(promptText, mock)
 
 	duration := time.Since(fromTime)
 
+	// Use the finish reason from the first choice as representative
+	finishReason := "N/A"
+	if len(c.Choices) > 0 {
+		finishReason = string(c.Choices[0].FinishReason) // Convert FinishReason type to string
+	}
+
+	var contentBuilder strings.Builder
+	firstFinishReason := finishReason // Store the first reason for comparison
+	for i, choice := range c.Choices {
+		if i > 0 {
+			contentBuilder.WriteString("\n---\n") // Add separator for multiple choices
+		}
+		contentBuilder.WriteString(choice.Message.Content)
+
+		// Check if finish reason is different from the first one
+		currentFinishReason := string(choice.FinishReason)
+		if currentFinishReason != firstFinishReason {
+			// Append if different and not already added (to avoid duplicates if many differ)
+			if !strings.Contains(finishReason, currentFinishReason) {
+				finishReason += ", " + currentFinishReason
+			}
+		}
+	}
+
+	// Update status string *after* the loop in case finishReason was modified
 	fmtStr := "Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds"
+	status := fmt.Sprintf(fmtStr, c.Model, c.Usage.TotalTokens, finishReason, duration.Seconds())
 
-	status := fmt.Sprintf(fmtStr, c.Model, c.Usage.TotalTokens, c.Choices[0].FinishReason, duration.Seconds())
-
-	// TODO: need to loop through choices per the Gemini example in case we get more than one back
-	return fmt.Sprintf("\n%s\n\n%s", status, c.Choices[0].Message.Content)
+	return fmt.Sprintf("\n%s\n\n%s", status, contentBuilder.String())
 }
 
-func ChatGPTWrapper(promptText string, listModelsToggle bool, mock bool) string {
-	// Note that list models toggle is not used and probably should be
-	return fmt.Sprintf("# ChatGPT\n%s\n\n", ChatGPTMiddleWrapper(promptText, listModelsToggle, mock))
+func ChatGPTWrapper(promptText string, mock bool) string {
+	return fmt.Sprintf("# ChatGPT\n%s\n\n", ChatGPTMiddleWrapper(promptText, mock))
 }

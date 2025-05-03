@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/generative-ai-go/genai"
@@ -12,11 +13,26 @@ import (
 )
 
 // ListGeminiModels will list Gemini models which are available
-func ListGeminiModels(client *genai.Client, ctx context.Context) string {
-	var out string
+func ListGeminiModels() string {
+	var builder strings.Builder
 
-	// --- 3. List Models ---
-	fmt.Println("--- Available Models ---")
+	// --- Get API Key ---
+	apiKey := GetGeminiAPIKeyOrBail()
+
+	// --- Set up the Gemini client ---
+	ctx := context.Background()
+
+	// Use option.WithAPIKey to authenticate with an API key
+	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	if err != nil {
+		Fatalf("Failed to create client: %v", err)
+	}
+
+	// Ensure the client is closed when main function finishes
+	defer client.Close()
+
+	// --- List Models ---
+	builder.WriteString("--- Available Models ---\n")
 	iter := client.ListModels(ctx)
 
 	// Loop through the models returned by the iterator
@@ -36,26 +52,26 @@ func ListGeminiModels(client *genai.Client, ctx context.Context) string {
 		// Note that we're only interested in models with generateContent in SupportedGenerationMethods
 		if strSliceContains(info.SupportedGenerationMethods, "generateContent") {
 			// Print information about the model
-			out += fmt.Sprintf("%s Display name: %s Supports: %v\n", info.Name, info.DisplayName, info.SupportedGenerationMethods)
+			fmt.Fprintf(&builder, "%s Display name: %s Supports: %v\n", info.Name, info.DisplayName, info.SupportedGenerationMethods)
 			if info.Description != "" {
-				out += fmt.Sprintf("Description: %s\n", info.Description)
+				fmt.Fprintf(&builder, "Description: %s\n", info.Description)
 			} else {
-				out += "Description: (none)\n"
+				builder.WriteString("Description: (none)\n")
 			}
-			out += fmt.Sprintln("----------------------")
+			builder.WriteString("----------------------\n")
 		}
 	}
-	out += fmt.Sprintln("--- End of List ---")
+	builder.WriteString("--- End of List ---\n")
 
-	return out
+	return builder.String()
 }
 
 // StringifyGeminiResponse is a helper function to print the response content
 // it returns response, finishReason, safetyRating
 func StringifyGeminiResponse(resp *genai.GenerateContentResponse, model string) (string, string, string) {
-	var response string
+	var response strings.Builder
 	var finishReason string = ""
-	var safetyRating string
+	var safetyRating strings.Builder
 
 	if resp == nil || len(resp.Candidates) == 0 {
 		return "Received an empty response.", "", ""
@@ -68,10 +84,10 @@ func StringifyGeminiResponse(resp *genai.GenerateContentResponse, model string) 
 		if cand.Content != nil {
 			for _, part := range cand.Content.Parts {
 				if textPart, ok := part.(genai.Text); ok {
-					response += string(textPart) // Add the part (which implicitly converts to string)
+					response.WriteString(string(textPart))
 				} else {
 					// It's not genai.Text (could be ImageData, FunctionCall, etc.)
-					fmt.Printf("Part is not genai.Text, it's type %T\n", part)
+					Fatalf("Part is not genai.Text, it's type %T\n", part)
 				}
 			}
 		} else {
@@ -80,8 +96,11 @@ func StringifyGeminiResponse(resp *genai.GenerateContentResponse, model string) 
 
 		// If there's a safety rating then stringify it
 		if len(cand.SafetyRatings) > 0 {
-			for _, each := range cand.SafetyRatings {
-				safetyRating += fmt.Sprintf("%+v", each)
+			for i, each := range cand.SafetyRatings {
+				if i > 0 {
+					safetyRating.WriteString(", ") // Add separator
+				}
+				fmt.Fprintf(&safetyRating, "%+v", each)
 			}
 		}
 
@@ -95,7 +114,7 @@ func StringifyGeminiResponse(resp *genai.GenerateContentResponse, model string) 
 		finishReason = "None"
 	}
 
-	return response, finishReason, safetyRating
+	return response.String(), finishReason, safetyRating.String()
 }
 
 func MockGenerateContentResponse() *genai.GenerateContentResponse {
@@ -172,12 +191,9 @@ func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Cl
 	}
 }
 
-func GeminiMiddleWrapper(promptText string, listModelsToggle bool, mock bool) string {
+func GeminiMiddleWrapper(promptText string, mock bool) string {
 	// --- Get API Key ---
-	apiKey := GetGeminiAPIKey()
-	if apiKey == "" {
-		Fatalf("API key not found. Please set the %s environment variable.", GeminiApiKey)
-	}
+	apiKey := GetGeminiAPIKeyOrBail()
 
 	// --- Set up the Gemini client ---
 	ctx := context.Background()
@@ -191,15 +207,11 @@ func GeminiMiddleWrapper(promptText string, listModelsToggle bool, mock bool) st
 	// Ensure the client is closed when main function finishes
 	defer client.Close()
 
-	if listModelsToggle {
-		return ListGeminiModels(client, ctx)
-	}
-
 	output := GeminiLowerWrapper(promptText, ctx, client, mock)
 
 	return output
 }
 
-func GeminiWrapper(promptText string, listModelsToggle bool, mock bool) string {
-	return fmt.Sprintf("# Gemini\n%s\n\n", GeminiMiddleWrapper(promptText, listModelsToggle, mock))
+func GeminiWrapper(promptText string, mock bool) string {
+	return fmt.Sprintf("# Gemini\n%s\n\n", GeminiMiddleWrapper(promptText, mock))
 }

@@ -38,7 +38,7 @@ func CerebrasGenChatCompletionMock() *openai.ChatCompletion {
 	}
 }
 
-func CerebrasLowerWrapper(promptText string, listModelsToggle bool, mock bool) *openai.ChatCompletion {
+func CerebrasLowerWrapper(promptText string, mock bool) *openai.ChatCompletion {
 	if mock {
 		return CerebrasGenChatCompletionMock()
 	}
@@ -56,7 +56,7 @@ func CerebrasLowerWrapper(promptText string, listModelsToggle bool, mock bool) *
 		https://inference-docs.cerebras.ai/resources/openai
 	*/
 
-	client := openai.NewClient(option.WithAPIKey(GetCerebrasAPIKey()), option.WithBaseURL("https://api.cerebras.ai/v1"))
+	client := openai.NewClient(option.WithAPIKey(GetCerebrasAPIKeyOrBail()), option.WithBaseURL("https://api.cerebras.ai/v1"))
 	chatCompletion, err := client.Chat.Completions.New(context.TODO(), openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(promptText),
@@ -71,10 +71,10 @@ func CerebrasLowerWrapper(promptText string, listModelsToggle bool, mock bool) *
 	return chatCompletion
 }
 
-func CerebrasMiddleWrapper(promptText string, listModelsToggle bool, mock bool) string {
+func CerebrasMiddleWrapper(promptText string, mock bool) string {
 	fromTime := time.Now()
 
-	c := CerebrasLowerWrapper(promptText, listModelsToggle, mock)
+	c := CerebrasLowerWrapper(promptText, mock)
 
 	duration := time.Since(fromTime)
 
@@ -87,7 +87,8 @@ func CerebrasMiddleWrapper(promptText string, listModelsToggle bool, mock bool) 
 	return fmt.Sprintf("\n%s\n\n%s", status, c.Choices[0].Message.Content)
 }
 
-func CerebrasWrapper(promptText string, listModelsToggle bool, mock bool) string {
+// CerebrasWrapper is the top-level function for Cerebras
+func CerebrasWrapper(promptText string, mock bool) string {
 	// Note that list models toggle is not used and probably should be
-	return fmt.Sprintf("# Cerebras\n%s\n\n", CerebrasMiddleWrapper(promptText, listModelsToggle, mock))
+	return fmt.Sprintf("# Cerebras\n%s\n\n", CerebrasMiddleWrapper(promptText, mock))
 }

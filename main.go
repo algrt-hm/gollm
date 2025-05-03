@@ -24,7 +24,7 @@ type ModelResponse struct {
 
 // Globals with various environment variable names for API keys
 const perplexityApiKey = "PERPLEXITY_API_KEY"
-const GeminiApiKey = "GEMINI_API_KEY"
+const geminiApiKey = "GEMINI_API_KEY"
 const chatGPTApiKey = "OPENAI_API_KEY"
 const cerebrasApiKey = "CEREBRAS_API_KEY"
 
@@ -76,25 +76,57 @@ func Fatalf(format string, a ...any) {
 	os.Exit(1)
 }
 
-func GetPerplexityAPIKey() string {
+func getPerplexityAPIKey() string {
 	return os.Getenv(perplexityApiKey)
 }
 
-func GetGeminiAPIKey() string {
-	return os.Getenv(GeminiApiKey)
+func getGeminiAPIKey() string {
+	return os.Getenv(geminiApiKey)
 }
 
-func GetChatGPTAPIKey() string {
+func getChatGPTAPIKey() string {
 	return os.Getenv(chatGPTApiKey)
 }
 
-func GetCerebrasAPIKey() string {
+func getCerebrasAPIKey() string {
 	return os.Getenv(cerebrasApiKey)
+}
+
+func GetPerplexityAPIKeyOrBail() string {
+	ret := getPerplexityAPIKey()
+	if ret == "" {
+		Fatalf("%s is not set", perplexityApiKey)
+	}
+	return ret
+}
+
+func GetGeminiAPIKeyOrBail() string {
+	ret := getGeminiAPIKey()
+	if ret == "" {
+		Fatalf("%s is not set", geminiApiKey)
+	}
+	return ret
+}
+
+func GetChatGPTAPIKeyOrBail() string {
+	ret := getChatGPTAPIKey()
+	if ret == "" {
+		Fatalf("%s is not set", chatGPTApiKey)
+	}
+	return ret
+}
+
+func GetCerebrasAPIKeyOrBail() string {
+	ret := getCerebrasAPIKey()
+	if ret == "" {
+		Fatalf("%s is not set", cerebrasApiKey)
+	}
+	return ret
 }
 
 func PrintAPIKeys() {
 	fmtStr := "\nPerplexity API key is: %+v\nChatGPT API key is: %+v\nGemini API key is: %+v\n"
-	fmt.Printf(fmtStr, GetPerplexityAPIKey(), GetChatGPTAPIKey(), GetGeminiAPIKey())
+	fmt.Printf(fmtStr, getPerplexityAPIKey(), getChatGPTAPIKey(), getGeminiAPIKey())
 }
 
 func RenderWithGlamour(text string) {
@@ -142,10 +174,10 @@ func PrintUsage(connectedToInternet bool) {
 `
 	apiKeyExtendo := "\t - You already have %s set\n"
 
-	haveGeminiAPIKey := GetGeminiAPIKey() != ""
-	havePerplexityAPIKey := GetPerplexityAPIKey() != ""
-	haveChatGPTAPIKey := GetChatGPTAPIKey() != ""
-	haveCerebrasAPIKey := GetCerebrasAPIKey() != ""
+	haveGeminiAPIKey := getGeminiAPIKey() != ""
+	havePerplexityAPIKey := getPerplexityAPIKey() != ""
+	haveChatGPTAPIKey := getChatGPTAPIKey() != ""
+	haveCerebrasAPIKey := getCerebrasAPIKey() != ""
 
 	// If we have any of the keys
 	if haveGeminiAPIKey || havePerplexityAPIKey || haveChatGPTAPIKey || haveCerebrasAPIKey {
@@ -160,7 +192,7 @@ func PrintUsage(connectedToInternet bool) {
 		}
 
 		if haveGeminiAPIKey {
-			usageFmt += fmt.Sprintf(apiKeyExtendo, GeminiApiKey)
+			usageFmt += fmt.Sprintf(apiKeyExtendo, geminiApiKey)
 		}
 
 		if haveCerebrasAPIKey {
@@ -179,13 +211,11 @@ func PrintUsage(connectedToInternet bool) {
 	}
 
 	usageFmt += "\n"
-	usage := fmt.Sprintf(usageFmt, os.Args[0], perplexityApiKey, chatGPTApiKey, GeminiApiKey, cerebrasApiKey)
+	usage := fmt.Sprintf(usageFmt, os.Args[0], perplexityApiKey, chatGPTApiKey, geminiApiKey, cerebrasApiKey)
 	fmt.Print(usage)
 }
 
 func main() {
-	listModelsToggle := false
-
 	useGemini, usePerplexity, useChatGPT, useCerebras := false, false, false, false
 
 	// We do this here because we want the result in PrintUsage()
@@ -203,7 +233,12 @@ func main() {
 		}
 
 		if strings.Contains(each, "-lg") {
-			fmt.Println(GeminiMiddleWrapper("", true, false))
+			fmt.Println(ListGeminiModels())
+			os.Exit(0)
+		}
+
+		if strings.Contains(each, "-lc") {
+			fmt.Println(ListOpenAIModels())
 			os.Exit(0)
 		}
 
@@ -242,19 +277,19 @@ func main() {
 	}
 
 	// Check we have API keys as required
-	if useChatGPT && GetChatGPTAPIKey() == "" {
+	if useChatGPT && getChatGPTAPIKey() == "" {
 		Fatalf("Please set environment variable %s to use ChatGPT", chatGPTApiKey)
 	}
 
-	if useGemini && GetGeminiAPIKey() == "" {
-		Fatalf("Please set environment variable %s to use Gemini", GeminiApiKey)
+	if useGemini && getGeminiAPIKey() == "" {
+		Fatalf("Please set environment variable %s to use Gemini", geminiApiKey)
 	}
 
-	if usePerplexity && GetPerplexityAPIKey() == "" {
+	if usePerplexity && getPerplexityAPIKey() == "" {
 		Fatalf("Please set environment variable %s to use Perplexity", perplexityApiKey)
 	}
 
-	if useCerebras && GetCerebrasAPIKey() == "" {
+	if useCerebras && getCerebrasAPIKey() == "" {
 		Fatalf("Please set environment variable %s to use Cerebras", cerebrasApiKey)
 	}
 
@@ -296,7 +331,7 @@ func main() {
 		go func() {
 			defer wg.Done()
 			fmt.Println("Hitting ChatGPT API ...")
-			RenderWithGlamour(ChatGPTWrapper(promptText, listModelsToggle, false))
+			RenderWithGlamour(ChatGPTWrapper(promptText, false))
 		}()
 	}
 
@@ -305,7 +340,7 @@ func main() {
 		go func() {
 			defer wg.Done()
 			fmt.Println("Hitting Gemini API ...")
-			RenderWithGlamour(GeminiWrapper(promptText, listModelsToggle, false))
+			RenderWithGlamour(GeminiWrapper(promptText, false))
 		}()
 	}
 
@@ -314,7 +349,7 @@ func main() {
 		go func() {
 			defer wg.Done()
 			fmt.Println("Hitting Cerebras API ...")
-			RenderWithGlamour(CerebrasWrapper(promptText, listModelsToggle, false))
+			RenderWithGlamour(CerebrasWrapper(promptText, false))
 		}()
 	}
 
