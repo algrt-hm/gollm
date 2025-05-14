@@ -16,13 +16,18 @@ Think of it as having a helpful AI assistant available right where you do your c
 
 ## How to use
 
-Binaries for Mac, Windows and Linux are in the `/bin` folder
+Binaries
+- Binaries for Mac, Windows and Linux are in the `/bin` folder
+- Note that the MacOS binaries are the ones labelled darwin and are available for both Apple Silicon (`gollm-darwin-arm64`) and Intel architectures (`gollm-darwin-amd64`)
+- If you want to create your own binaries, simply clone the repo and run `make build`.
 
 You run the `gollm` command followed by your question or instruction. For example:
 
 ```bash
-gollm "What's the weather like in London?"
+gollm "Please tell me a little about yourself"
 ```
+
+The prompt will be sent to any LLMs you have API keys set up for and the responses will be printed as they come back.
 
 Or you can send text from another command to gollm:
 
@@ -66,7 +71,7 @@ gollm:
 
 For installation of latest go on Ubuntu see: https://algrt.hm/2024-09-29-recent-go-on-popos/
 
-**Genini**
+**Gemini**
 
 - For GEMINI_API_KEY see: https://aistudio.google.com/app/plan_information
 - For usage of the API see: https://console.cloud.google.com/apis/api/generativelanguage.googleapis.com/metrics

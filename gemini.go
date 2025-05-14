@@ -172,7 +172,7 @@ func GeminiCallAPI(modelName string, promptText string, ctx context.Context, cli
 func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Client, mock bool) string {
 	// Start the timer
 	startTime := time.Now()
-	modelName := "models/gemini-2.0-pro-exp-02-05"
+	modelName := "models/gemini-2.5-pro-preview-03-25"
 
 	resp, err := GeminiCallAPI(modelName, promptText, ctx, client, mock)
 
