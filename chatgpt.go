@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -135,6 +136,57 @@ func ChatGPTMiddleWrapper(promptText string, mock bool) string {
 	return fmt.Sprintf("\n%s\n\n%s", status, contentBuilder.String())
 }
 
-func ChatGPTWrapper(promptText string, mock bool) string {
-	return fmt.Sprintf("# ChatGPT\n%s\n\n", ChatGPTMiddleWrapper(promptText, mock))
+func ChatGPTWrapper(promptText string, mock bool, logToJsonl bool) string {
+	fromTime := time.Now()
+
+	c := ChatGPTLowerWrapper(promptText, mock)
+
+	duration := time.Since(fromTime)
+
+	// Use the finish reason from the first choice as representative
+	finishReason := "N/A"
+	if len(c.Choices) > 0 {
+		finishReason = string(c.Choices[0].FinishReason) // Convert FinishReason type to string
+	}
+
+	var contentBuilder strings.Builder
+	firstFinishReason := finishReason // Store the first reason for comparison
+	for i, choice := range c.Choices {
+		if i > 0 {
+			contentBuilder.WriteString("\n---\n") // Add separator for multiple choices
+		}
+		contentBuilder.WriteString(choice.Message.Content)
+
+		// Check if finish reason is different from the first one
+		currentFinishReason := string(choice.FinishReason)
+		if currentFinishReason != firstFinishReason {
+			// Append if different and not already added (to avoid duplicates if many differ)
+			if !strings.Contains(finishReason, currentFinishReason) {
+				finishReason += ", " + currentFinishReason
+			}
+		}
+	}
+
+	// Log successful model call only if logging is enabled
+	if logToJsonl {
+		logEntry := LogEntry{
+			ModelName:     c.Model,
+			TotalTokens:   int(c.Usage.TotalTokens),
+			Duration:      duration.Seconds(),
+			StopReason:    finishReason,
+			PromptText:    promptText,
+			ModelResponse: contentBuilder.String(),
+			Timestamp:     time.Now(),
+		}
+		if err := WriteLogEntry(logEntry); err != nil {
+			// Log error but don't fail the request
+			fmt.Fprintf(os.Stderr, "Failed to write log entry: %v\n", err)
+		}
+	}
+
+	// Update status string *after* the loop in case finishReason was modified
+	fmtStr := "Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds"
+	status := fmt.Sprintf(fmtStr, c.Model, c.Usage.TotalTokens, finishReason, duration.Seconds())
+
+	return fmt.Sprintf("# ChatGPT\n\n%s\n\n%s\n\n", status, contentBuilder.String())
 }

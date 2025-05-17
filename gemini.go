@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -169,7 +170,7 @@ func GeminiCallAPI(modelName string, promptText string, ctx context.Context, cli
 }
 
 // GeminiLowerWrapper calls the Gemini API
-func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Client, mock bool) string {
+func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Client, mock bool, logToJsonl bool) string {
 	// Start the timer
 	startTime := time.Now()
 	modelName := "models/gemini-2.5-pro-preview-03-25"
@@ -184,6 +185,23 @@ func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Cl
 	totalTokenCount := resp.UsageMetadata.TotalTokenCount
 	duration := time.Since(startTime)
 
+	// Log successful model call only if logging is enabled
+	if logToJsonl {
+		logEntry := LogEntry{
+			ModelName:     modelName,
+			TotalTokens:   int(totalTokenCount),
+			Duration:      duration.Seconds(),
+			StopReason:    finishReason,
+			PromptText:    promptText,
+			ModelResponse: buffer,
+			Timestamp:     time.Now(),
+		}
+		if err := WriteLogEntry(logEntry); err != nil {
+			// Log error but don't fail the request
+			fmt.Fprintf(os.Stderr, "Failed to write log entry: %v\n", err)
+		}
+	}
+
 	if safetyRating != "" {
 		return fmt.Sprintf("\nModel: %s, %d tokens used, finished due to: %s, safety rating: %s, duration: %.3f seconds\n\n%s\n", modelName, totalTokenCount, finishReason, safetyRating, duration.Seconds(), buffer)
 	} else {
@@ -191,7 +209,7 @@ func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Cl
 	}
 }
 
-func GeminiMiddleWrapper(promptText string, mock bool) string {
+func GeminiMiddleWrapper(promptText string, mock bool, logToJsonl bool) string {
 	// --- Get API Key ---
 	apiKey := GetGeminiAPIKeyOrBail()
 
@@ -207,11 +225,11 @@ func GeminiMiddleWrapper(promptText string, mock bool) string {
 	// Ensure the client is closed when main function finishes
 	defer client.Close()
 
-	output := GeminiLowerWrapper(promptText, ctx, client, mock)
+	output := GeminiLowerWrapper(promptText, ctx, client, mock, logToJsonl)
 
 	return output
 }
 
-func GeminiWrapper(promptText string, mock bool) string {
-	return fmt.Sprintf("# Gemini\n%s\n\n", GeminiMiddleWrapper(promptText, mock))
+func GeminiWrapper(promptText string, mock bool, logToJsonl bool) string {
+	return fmt.Sprintf("# Gemini\n%s\n\n", GeminiMiddleWrapper(promptText, mock, logToJsonl))
 }

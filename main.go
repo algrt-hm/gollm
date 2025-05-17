@@ -152,10 +152,11 @@ func PrintUsage(connectedToInternet bool) {
 	-c	use ChatGPT
 	-g	use Gemini
 	-h	show (this) help
-	-l	use Cerebras
+	-f	use Cerebras
 	-lg	list Gemini models
 	-p	use Perplexity
 	-t	test API keys (note: they will be displayed)
+	-l	enable logging of model interactions to ~/gollm_logs.jsonl
 
 	API keys should be set using the environment variables below:
 
@@ -217,6 +218,7 @@ func PrintUsage(connectedToInternet bool) {
 
 func main() {
 	useGemini, usePerplexity, useChatGPT, useCerebras := false, false, false, false
+	logToJsonl := false
 
 	// We do this here because we want the result in PrintUsage()
 	connected, err := CheckInternetHTTP()
@@ -242,6 +244,11 @@ func main() {
 			os.Exit(0)
 		}
 
+		if strings.Contains(each, "-l") {
+			logToJsonl = true
+			fmt.Println("Logging")
+		}
+
 		if strings.Contains(each, "-c") {
 			useChatGPT = true
 			fmt.Println("Using ChatGPT")
@@ -260,7 +267,7 @@ func main() {
 			break
 		}
 
-		if strings.Contains(each, "-l") {
+		if strings.Contains(each, "-f") {
 			useCerebras = true
 			fmt.Println("Using Cerebras")
 			break
@@ -322,7 +329,7 @@ func main() {
 		go func() {
 			defer wg.Done()
 			fmt.Println("Hitting Perplexity API ...")
-			RenderWithGlamour(PerplexityWrapper(promptText, false))
+			RenderWithGlamour(PerplexityWrapper(promptText, false, logToJsonl))
 		}()
 	}
 
@@ -331,7 +338,7 @@ func main() {
 		go func() {
 			defer wg.Done()
 			fmt.Println("Hitting ChatGPT API ...")
-			RenderWithGlamour(ChatGPTWrapper(promptText, false))
+			RenderWithGlamour(ChatGPTWrapper(promptText, false, logToJsonl))
 		}()
 	}
 
@@ -340,7 +347,7 @@ func main() {
 		go func() {
 			defer wg.Done()
 			fmt.Println("Hitting Gemini API ...")
-			RenderWithGlamour(GeminiWrapper(promptText, false))
+			RenderWithGlamour(GeminiWrapper(promptText, false, logToJsonl))
 		}()
 	}
 
@@ -349,7 +356,7 @@ func main() {
 		go func() {
 			defer wg.Done()
 			fmt.Println("Hitting Cerebras API ...")
-			RenderWithGlamour(CerebrasWrapper(promptText, false))
+			RenderWithGlamour(CerebrasWrapper(promptText, false, logToJsonl))
 		}()
 	}
 

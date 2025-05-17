@@ -12,7 +12,7 @@ import (
 func TestPerplexityWrapper(t *testing.T) {
 	promptText := "Please tell me about Perplexity"
 
-	RenderWithGlamour(PerplexityWrapper(promptText, true))
+	RenderWithGlamour(PerplexityWrapper(promptText, true, false))
 }
 
 func TestCallPerplexityAPIGeminiVersion(t *testing.T) {

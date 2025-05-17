@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/openai/openai-go"
@@ -88,7 +89,35 @@ func CerebrasMiddleWrapper(promptText string, mock bool) string {
 }
 
 // CerebrasWrapper is the top-level function for Cerebras
-func CerebrasWrapper(promptText string, mock bool) string {
-	// Note that list models toggle is not used and probably should be
-	return fmt.Sprintf("# Cerebras\n%s\n\n", CerebrasMiddleWrapper(promptText, mock))
+func CerebrasWrapper(promptText string, mock bool, logToJsonl bool) string {
+	fromTime := time.Now()
+
+	c := CerebrasLowerWrapper(promptText, mock)
+
+	duration := time.Since(fromTime)
+
+	// Log successful model call only if logging is enabled
+	if logToJsonl {
+		logEntry := LogEntry{
+			ModelName:     c.Model,
+			TotalTokens:   int(c.Usage.TotalTokens),
+			Duration:      duration.Seconds(),
+			StopReason:    c.Choices[0].FinishReason,
+			PromptText:    promptText,
+			ModelResponse: c.Choices[0].Message.Content,
+			Timestamp:     time.Now(),
+		}
+		if err := WriteLogEntry(logEntry); err != nil {
+			// Log error but don't fail the request
+			fmt.Fprintf(os.Stderr, "Failed to write log entry: %v\n", err)
+		}
+	}
+
+	// Model: sonar-pro, 135 tokens used, finished due to: length, duration: 0.000 seconds
+	fmtStr := "Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds"
+
+	status := fmt.Sprintf(fmtStr, c.Model, c.Usage.TotalTokens, c.Choices[0].FinishReason, duration.Seconds())
+
+	// TODO: need to loop through choices per the Gemini example in case we get more than one back
+	return fmt.Sprintf("# Cerebras\n\n%s\n\n%s\n\n", status, c.Choices[0].Message.Content)
 }

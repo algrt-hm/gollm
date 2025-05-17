@@ -8,9 +8,9 @@ gollm lets you do just that! It's a simple tool that connects your terminal to p
 
 ## Why use `gollm`?
 
-*   *Quick Answers:* Get fast responses to your questions or prompts.
-*   *Convenience:* Interact with AI without leaving your terminal.
-*   *Scripting:* Integrate AI capabilities into your command-line workflows or scripts (if you're into that!).
+- *Quick Answers:* Get fast responses to your questions or prompts.
+- *Convenience:* Interact with AI without leaving your terminal.
+- *Scripting:* Integrate AI capabilities into your command-line workflows or scripts (if you're into that!).
 
 Think of it as having a helpful AI assistant available right where you do your command-line work.
 
@@ -19,7 +19,7 @@ Think of it as having a helpful AI assistant available right where you do your c
 Binaries
 - Binaries for Mac, Windows and Linux are in the `/bin` folder
 - Note that the MacOS binaries are the ones labelled darwin and are available for both Apple Silicon (`gollm-darwin-arm64`) and Intel architectures (`gollm-darwin-amd64`)
-- If you want to create your own binaries, simply clone the repo and run `make build`.
+- If you want to create your own binaries, simply clone the repo and run `make build`; note that for this to work you will need recent Go installed, see `go.mod` for required version
 
 You run the `gollm` command followed by your question or instruction. For example:
 
@@ -37,6 +37,8 @@ cat my_document.txt | gollm "Summarize this text"
 
 (Note: You'll need to set it up first, which involves getting API keys from the AI providers.)
 
+If you only want to use one model, you can specify that with flags ...
+
 ## Usage
 
 ```
@@ -44,10 +46,11 @@ gollm:
 	-c	use ChatGPT
 	-g	use Gemini
 	-h	show (this) help
-	-l	use Cerebras
+	-f	use Cerebras
 	-lg	list Gemini models
 	-p	use Perplexity
 	-t	test API keys (note: they will be displayed)
+	-l	enable logging of model interactions to ~/gollm_logs.jsonl
 
 	API keys should be set using the environment variables below:
 
@@ -63,7 +66,21 @@ gollm:
 	# For Cerebras
 	export CEREBRAS_API_KEY="your Cerebras API key here"
 
-```
+## Logging
+
+When you use the `-l` flag, gollm will log all model interactions to a file called `gollm_logs.jsonl` in your home directory. Each log entry contains:
+
+- Model name
+- Total tokens used
+- Duration of the request
+- Stop reason
+- Prompt text
+- Model response
+- Timestamp
+
+This can be useful for: tracking your API usage, analysing model performance etc.
+
+The logs are stored in JSONL format (one JSON object per line), making them easy to process with tools like `jq` or import into data analysis tools. SQLite would have been another option but this would make cross-compilation more difficult.
 
 ## More bits
 

@@ -216,7 +216,7 @@ func CallPerplexityAPI(promptText string, mock bool) (string, time.Duration) {
 	return string(body), time.Since(startTime)
 }
 
-func PerplexityWrapper(promptText string, mock bool) string {
+func PerplexityWrapper(promptText string, mock bool, logToJsonl bool) string {
 	var response PerplexityResponse
 
 	result, duration := CallPerplexityAPI(promptText, mock)
@@ -227,5 +227,23 @@ func PerplexityWrapper(promptText string, mock bool) string {
 	}
 
 	modelResponse := ParsePerplexityResponse(result)
+
+	// Log successful model call only if logging is enabled
+	if logToJsonl {
+		logEntry := LogEntry{
+			ModelName:     modelResponse.Model,
+			TotalTokens:   modelResponse.TotalTokens,
+			Duration:      duration.Seconds(),
+			StopReason:    modelResponse.FinishReason,
+			PromptText:    promptText,
+			ModelResponse: modelResponse.Content,
+			Timestamp:     time.Now(),
+		}
+		if err := WriteLogEntry(logEntry); err != nil {
+			// Log error but don't fail the request
+			fmt.Fprintf(os.Stderr, "Failed to write log entry: %v\n", err)
+		}
+	}
+
 	return FmtModelResponse(modelResponse, duration)
 }
