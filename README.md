@@ -35,6 +35,13 @@ Or you can send text from another command to gollm:
 cat my_document.txt | gollm "Summarize this text"
 ```
 
+By way of a more advanced example:
+
+```bash
+(printf "Please generate a brief commit message based on this diff\n\n---\n\n"; git status -v) | gollm -c
+```
+
+
 (Note: You'll need to set it up first, which involves getting API keys from the AI providers.)
 
 If you only want to use one model, you can specify that with flags ...
@@ -65,6 +72,7 @@ gollm:
 
 	# For Cerebras
 	export CEREBRAS_API_KEY="your Cerebras API key here"
+```
 
 ## Logging
 
