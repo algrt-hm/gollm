@@ -170,7 +170,7 @@ func GeminiCallAPI(modelName string, promptText string, ctx context.Context, cli
 }
 
 // GeminiLowerWrapper calls the Gemini API
-func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Client, mock bool, logToJsonl bool) string {
+func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Client, mock bool, logToJsonl bool, quietMode bool) string {
 	// Start the timer
 	startTime := time.Now()
 	modelName := "models/gemini-2.5-pro-preview-03-25"
@@ -202,6 +202,10 @@ func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Cl
 		}
 	}
 
+	if quietMode {
+		return buffer
+	}
+
 	if safetyRating != "" {
 		return fmt.Sprintf("\nModel: %s, %d tokens used, finished due to: %s, safety rating: %s, duration: %.3f seconds\n\n%s\n", modelName, totalTokenCount, finishReason, safetyRating, duration.Seconds(), buffer)
 	} else {
@@ -209,7 +213,7 @@ func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Cl
 	}
 }
 
-func GeminiMiddleWrapper(promptText string, mock bool, logToJsonl bool) string {
+func GeminiMiddleWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {
 	// --- Get API Key ---
 	apiKey := GetGeminiAPIKeyOrBail()
 
@@ -225,11 +229,15 @@ func GeminiMiddleWrapper(promptText string, mock bool, logToJsonl bool) string {
 	// Ensure the client is closed when main function finishes
 	defer client.Close()
 
-	output := GeminiLowerWrapper(promptText, ctx, client, mock, logToJsonl)
+	output := GeminiLowerWrapper(promptText, ctx, client, mock, logToJsonl, quietMode)
 
 	return output
 }
 
-func GeminiWrapper(promptText string, mock bool, logToJsonl bool) string {
-	return fmt.Sprintf("# Gemini\n%s\n\n", GeminiMiddleWrapper(promptText, mock, logToJsonl))
+func GeminiWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {
+	s := GeminiMiddleWrapper(promptText, mock, logToJsonl, quietMode) + "\n"
+	if quietMode {
+		return s
+	}
+	return fmt.Sprintf("# Gemini\n%s\n", s)
 }

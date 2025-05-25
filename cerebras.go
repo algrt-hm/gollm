@@ -89,7 +89,7 @@ func CerebrasMiddleWrapper(promptText string, mock bool) string {
 }
 
 // CerebrasWrapper is the top-level function for Cerebras
-func CerebrasWrapper(promptText string, mock bool, logToJsonl bool) string {
+func CerebrasWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {
 	fromTime := time.Now()
 
 	c := CerebrasLowerWrapper(promptText, mock)
@@ -111,6 +111,10 @@ func CerebrasWrapper(promptText string, mock bool, logToJsonl bool) string {
 			// Log error but don't fail the request
 			fmt.Fprintf(os.Stderr, "Failed to write log entry: %v\n", err)
 		}
+	}
+
+	if quietMode {
+		return c.Choices[0].Message.Content
 	}
 
 	// Model: sonar-pro, 135 tokens used, finished due to: length, duration: 0.000 seconds

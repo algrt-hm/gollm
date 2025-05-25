@@ -38,9 +38,8 @@ cat my_document.txt | gollm "Summarize this text"
 By way of a more advanced example:
 
 ```bash
-(printf "Please generate a brief commit message based on this diff\n\n---\n\n"; git status -v) | gollm -c
+(printf "Please generate a commit message based on this diff\n\n---\n\n"; git status -v) | gollm -q -c
 ```
-
 
 (Note: You'll need to set it up first, which involves getting API keys from the AI providers.)
 
@@ -58,6 +57,7 @@ gollm:
 	-p	use Perplexity
 	-t	test API keys (note: they will be displayed)
 	-l	enable logging of model interactions to ~/gollm_logs.jsonl
+	-q	quiet mode: turns off logging and all non-essential output
 
 	API keys should be set using the environment variables below:
 

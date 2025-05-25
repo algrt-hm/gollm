@@ -136,7 +136,7 @@ func ChatGPTMiddleWrapper(promptText string, mock bool) string {
 	return fmt.Sprintf("\n%s\n\n%s", status, contentBuilder.String())
 }
 
-func ChatGPTWrapper(promptText string, mock bool, logToJsonl bool) string {
+func ChatGPTWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {
 	fromTime := time.Now()
 
 	c := ChatGPTLowerWrapper(promptText, mock)
@@ -182,6 +182,10 @@ func ChatGPTWrapper(promptText string, mock bool, logToJsonl bool) string {
 			// Log error but don't fail the request
 			fmt.Fprintf(os.Stderr, "Failed to write log entry: %v\n", err)
 		}
+	}
+
+	if quietMode {
+		return contentBuilder.String()
 	}
 
 	// Update status string *after* the loop in case finishReason was modified

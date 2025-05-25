@@ -73,10 +73,12 @@ func ParsePerplexityResponse(result string) ModelResponse {
 	}
 }
 
-func FmtModelResponse(response ModelResponse, duration time.Duration) string {
+func FmtModelResponse(response ModelResponse, duration time.Duration, quietMode bool) string {
 	var out string
 
-	out += fmt.Sprintf("Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds\n", response.Model, response.TotalTokens, response.FinishReason, duration.Seconds())
+	if !quietMode {
+		out += fmt.Sprintf("Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds\n", response.Model, response.TotalTokens, response.FinishReason, duration.Seconds())
+	}
 
 	// Replace e.g. [1] with [^1] in response.Content using a regex
 	re := regexp.MustCompile(`\[(\d+)\]`)
@@ -95,6 +97,10 @@ func FmtModelResponse(response ModelResponse, duration time.Duration) string {
 	for idx, citation := range response.Citations {
 		out += fmt.Sprintf("%d. %s\n", idx+1, citation)
 	}
+
+	if quietMode {
+		return out + "\n"
+	} // implied else
 
 	return "# Perplexity\n" + out + "\n"
 }
@@ -216,7 +222,7 @@ func CallPerplexityAPI(promptText string, mock bool) (string, time.Duration) {
 	return string(body), time.Since(startTime)
 }
 
-func PerplexityWrapper(promptText string, mock bool, logToJsonl bool) string {
+func PerplexityWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {
 	var response PerplexityResponse
 
 	result, duration := CallPerplexityAPI(promptText, mock)
@@ -245,5 +251,5 @@ func PerplexityWrapper(promptText string, mock bool, logToJsonl bool) string {
 		}
 	}
 
-	return FmtModelResponse(modelResponse, duration)
+	return FmtModelResponse(modelResponse, duration, quietMode)
 }

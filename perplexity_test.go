@@ -11,8 +11,9 @@ import (
 
 func TestPerplexityWrapper(t *testing.T) {
 	promptText := "Please tell me about Perplexity"
+	quietMode = true
 
-	RenderWithGlamour(PerplexityWrapper(promptText, true, false))
+	Render(PerplexityWrapper(promptText, true, false, quietMode))
 }
 
 func TestCallPerplexityAPIGeminiVersion(t *testing.T) {

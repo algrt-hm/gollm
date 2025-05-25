@@ -28,6 +28,12 @@ const geminiApiKey = "GEMINI_API_KEY"
 const chatGPTApiKey = "OPENAI_API_KEY"
 const cerebrasApiKey = "CEREBRAS_API_KEY"
 
+// if quiet mode is enabled:
+// - we turn off logging
+// - we can use raw print not glamour
+// - we don't need headers or footers
+var quietMode bool = false
+
 // TODO: 'finished due to: ' in Gemini output doesn't work
 
 // CheckInternetHTTP attempts to make an HTTP GET request to a reliable server.
@@ -60,6 +66,23 @@ func CheckInternetHTTP() (bool, error) {
 
 	// Unexpected status code might indicate an issue (like a captive portal)
 	return false, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+}
+
+func Print(s string) (int, error) {
+	// not quietMode is the default case
+	if !quietMode {
+		return fmt.Println(s)
+	}
+	return 0, nil
+}
+
+func Render(s string) {
+	// not quietMode is the default case
+	if !quietMode {
+		RenderWithGlamour(s)
+	} else {
+		fmt.Println(s)
+	}
 }
 
 func strSliceContains(s []string, str string) bool {
@@ -157,6 +180,7 @@ func PrintUsage(connectedToInternet bool) {
 	-p	use Perplexity
 	-t	test API keys (note: they will be displayed)
 	-l	enable logging of model interactions to ~/gollm_logs.jsonl
+	-q	quiet mode: turns off logging and all non-essential output
 
 	API keys should be set using the environment variables below:
 
@@ -244,35 +268,50 @@ func main() {
 			os.Exit(0)
 		}
 
+		if strings.Contains(each, "-q") {
+			quietMode = true
+
+			if logToJsonl {
+				logToJsonl = false
+				fmt.Fprintf(os.Stderr, "Not logging as quiet mode activated\n")
+			}
+		}
+
 		if strings.Contains(each, "-l") {
-			logToJsonl = true
-			fmt.Println("Logging")
+			if quietMode {
+				fmt.Fprintf(os.Stderr, "Not logging as quiet mode activated\n")
+			} else {
+				logToJsonl = true
+			}
 		}
 
 		if strings.Contains(each, "-c") {
 			useChatGPT = true
-			fmt.Println("Using ChatGPT")
+			Print("Using ChatGPT")
 			break
 		}
 
 		if strings.Contains(each, "-g") {
 			useGemini = true
-			fmt.Println("Using Gemini")
+			Print("Using Gemini")
 			break
 		}
 
 		if strings.Contains(each, "-p") {
 			usePerplexity = true
-			fmt.Println("Using Perplexity")
+			Print("Using Perplexity")
 			break
 		}
 
 		if strings.Contains(each, "-f") {
 			useCerebras = true
-			fmt.Println("Using Cerebras")
+			Print("Using Cerebras")
 			break
 		}
 	}
+
+	// Let the user know if we're logging
+	Print("Logging")
 
 	// If none explicitly selected then use all
 	if !(useChatGPT || useGemini || usePerplexity || useCerebras) {
@@ -328,8 +367,8 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			fmt.Println("Hitting Perplexity API ...")
-			RenderWithGlamour(PerplexityWrapper(promptText, false, logToJsonl))
+			Print("Hitting Perplexity API ...")
+			Render(PerplexityWrapper(promptText, false, logToJsonl, quietMode))
 		}()
 	}
 
@@ -337,8 +376,8 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			fmt.Println("Hitting ChatGPT API ...")
-			RenderWithGlamour(ChatGPTWrapper(promptText, false, logToJsonl))
+			Print("Hitting ChatGPT API ...")
+			Render(ChatGPTWrapper(promptText, false, logToJsonl, quietMode))
 		}()
 	}
 
@@ -346,8 +385,8 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			fmt.Println("Hitting Gemini API ...")
-			RenderWithGlamour(GeminiWrapper(promptText, false, logToJsonl))
+			Print("Hitting Gemini API ...")
+			Render(GeminiWrapper(promptText, false, logToJsonl, quietMode))
 		}()
 	}
 
@@ -355,13 +394,15 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			fmt.Println("Hitting Cerebras API ...")
-			RenderWithGlamour(CerebrasWrapper(promptText, false, logToJsonl))
+			Print("Hitting Cerebras API ...")
+			Render(CerebrasWrapper(promptText, false, logToJsonl, quietMode))
 		}()
 	}
 
 	// Wait here ensures main doesn't exit before goroutines finish
 	wg.Wait()
 
-	RenderWithGlamour("\n# Done\n")
+	if !quietMode {
+		RenderWithGlamour("\n# Done\n")
+	}
 }
