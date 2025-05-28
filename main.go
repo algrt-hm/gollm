@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -171,16 +172,21 @@ func RenderWithGlamour(text string) {
 }
 
 func PrintUsage(connectedToInternet bool) {
-	usageFmt := `%s:
-	-c	use ChatGPT
-	-g	use Gemini
+	usageFmt := `%s [options] [model]
+
+	options:
 	-h	show (this) help
-	-f	use Cerebras
 	-lg	list Gemini models
-	-p	use Perplexity
 	-t	test API keys (note: they will be displayed)
 	-l	enable logging of model interactions to ~/gollm_logs.jsonl
 	-q	quiet mode: turns off logging and all non-essential output
+	-rl	[index]	show the log index, or if an index is provided, show the LLM response
+
+	model:
+	-c	use ChatGPT
+	-g	use Gemini
+	-f	use Cerebras
+	-p	use Perplexity
 
 	API keys should be set using the environment variables below:
 
@@ -246,11 +252,32 @@ func main() {
 
 	// We do this here because we want the result in PrintUsage()
 	connected, err := CheckInternetHTTP()
+	argc := len(os.Args)
 
-	for _, each := range os.Args {
+	for idx, each := range os.Args {
+		if strings.Contains(each, "-rl") {
+			// negative means print all
+			var logIdx = -1
+			// TODO: should look ahead and see if the next argument can be an integer
+			// if it can be, that's our idx for ReadLogIdx
+
+			// if there is a next arg
+			if idx+1 < argc {
+				// try to atoi the next arg
+				intArg, err := strconv.Atoi(os.Args[idx+1])
+				// if successful use it
+				if err == nil {
+					logIdx = intArg
+				}
+			}
+
+			ReadLogIdx(logIdx)
+			os.Exit(0)
+		}
+
 		if strings.Contains(each, "-h") {
 			PrintUsage(connected)
-			os.Exit(1)
+			os.Exit(0)
 		}
 
 		if strings.Contains(each, "-t") {

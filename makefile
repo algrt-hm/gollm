@@ -2,6 +2,9 @@
 
 PROJECT = gollm
 
+code:
+	code .
+
 test-verbose:
 	go test -v
 

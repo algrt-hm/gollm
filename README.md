@@ -48,30 +48,35 @@ If you only want to use one model, you can specify that with flags ...
 ## Usage
 
 ```
-gollm:
-	-c	use ChatGPT
-	-g	use Gemini
-	-h	show (this) help
-	-f	use Cerebras
-	-lg	list Gemini models
-	-p	use Perplexity
-	-t	test API keys (note: they will be displayed)
-	-l	enable logging of model interactions to ~/gollm_logs.jsonl
-	-q	quiet mode: turns off logging and all non-essential output
+gollm [options] [model]
 
-	API keys should be set using the environment variables below:
+        options:
+        -h      show (this) help
+        -lg     list Gemini models
+        -t      test API keys (note: they will be displayed)
+        -l      enable logging of model interactions to ~/gollm_logs.jsonl
+        -q      quiet mode: turns off logging and all non-essential output
+        -rl     [index] show the log index, or if an index is provided, show the LLM response
 
-	# For Perplexity
-	export PERPLEXITY_API_KEY="your Perplexity API key here"
+        model:
+        -c      use ChatGPT
+        -g      use Gemini
+        -f      use Cerebras
+        -p      use Perplexity
 
-	# For ChatGPT
-	export OPENAI_API_KEY="your OpenAI API key here"
+        API keys should be set using the environment variables below:
 
-	# For Gemini
-	export GEMINI_API_KEY="your Gemini API key here"
+        # For Perplexity
+        export PERPLEXITY_API_KEY="your Perplexity API key here"
 
-	# For Cerebras
-	export CEREBRAS_API_KEY="your Cerebras API key here"
+        # For ChatGPT
+        export OPENAI_API_KEY="your OpenAI API key here"
+
+        # For Gemini
+        export GEMINI_API_KEY="your Gemini API key here"
+
+        # For Cerebras
+        export CEREBRAS_API_KEY="your Cerebras API key here"
 ```
 
 ## Logging
