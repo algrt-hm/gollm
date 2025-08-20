@@ -6,6 +6,7 @@ require (
 	github.com/charmbracelet/glamour v0.10.0
 	github.com/google/generative-ai-go v0.20.1
 	github.com/openai/openai-go v1.12.0
+	github.com/openai/openai-go/v2 v2.1.0
 	google.golang.org/api v0.248.0
 )
 
