@@ -13,6 +13,14 @@ import (
 	"google.golang.org/api/option"
 )
 
+// ModelInfo represents the information we need about a model
+type ModelInfo struct {
+	Name                       string
+	DisplayName                string
+	Description                string
+	SupportedGenerationMethods []string
+}
+
 // ListGeminiModels will list Gemini models which are available
 func ListGeminiModels() string {
 	var builder strings.Builder
@@ -32,39 +40,62 @@ func ListGeminiModels() string {
 	// Ensure the client is closed when main function finishes
 	defer client.Close()
 
-	// --- List Models ---
+	// --- Collect models in a single pass ---
+	supportedModels, err := collectSupportedModels(ctx, client)
+	if err != nil {
+		Fatalf("Failed to collect models: %v", err)
+	}
+
+	// --- Format detailed output ---
 	builder.WriteString("--- Available Models ---\n")
-	iter := client.ListModels(ctx)
-
-	// Loop through the models returned by the iterator
-	for {
-		info, err := iter.Next()
-
-		if errors.Is(err, iterator.Done) {
-			// The iterator is exhausted, break the loop
-			break
+	for _, model := range supportedModels {
+		fmt.Fprintf(&builder, "%s Display name: %s Supports: %v\n", model.Name, model.DisplayName, model.SupportedGenerationMethods)
+		if model.Description != "" {
+			fmt.Fprintf(&builder, "Description: %s\n", model.Description)
+		} else {
+			builder.WriteString("Description: (none)\n")
 		}
-
-		if err != nil {
-			// Handle any other error during iteration
-			Fatalf("Failed to iterate models: %v", err)
-		}
-
-		// Note that we're only interested in models with generateContent in SupportedGenerationMethods
-		if strSliceContains(info.SupportedGenerationMethods, "generateContent") {
-			// Print information about the model
-			fmt.Fprintf(&builder, "%s Display name: %s Supports: %v\n", info.Name, info.DisplayName, info.SupportedGenerationMethods)
-			if info.Description != "" {
-				fmt.Fprintf(&builder, "Description: %s\n", info.Description)
-			} else {
-				builder.WriteString("Description: (none)\n")
-			}
-			builder.WriteString("----------------------\n")
-		}
+		builder.WriteString("----------------------\n")
 	}
 	builder.WriteString("--- End of List ---\n")
 
+	// --- Format bulleted list ---
+	builder.WriteString("\n--- Models supporting generateContent ---\n")
+	for _, model := range supportedModels {
+		fmt.Fprintf(&builder, " - %s (%s)\n", model.Name, model.DisplayName)
+	}
+	builder.WriteString("--- End of bulleted list ---\n")
+
 	return builder.String()
+}
+
+// collectSupportedModels iterates through all models once and returns those supporting generateContent
+func collectSupportedModels(ctx context.Context, client *genai.Client) ([]ModelInfo, error) {
+	var supportedModels []ModelInfo
+
+	iter := client.ListModels(ctx)
+	for {
+		info, err := iter.Next()
+		if errors.Is(err, iterator.Done) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate models: %w", err)
+		}
+
+		// Only collect models that support generateContent
+		if strSliceContains(info.SupportedGenerationMethods, "generateContent") {
+			model := ModelInfo{
+				Name:                       info.Name,
+				DisplayName:                info.DisplayName,
+				Description:                info.Description,
+				SupportedGenerationMethods: info.SupportedGenerationMethods,
+			}
+			supportedModels = append(supportedModels, model)
+		}
+	}
+
+	return supportedModels, nil
 }
 
 // StringifyGeminiResponse is a helper function to print the response content
@@ -157,7 +188,7 @@ func GeminiCallAPI(modelName string, promptText string, ctx context.Context, cli
 	if mock {
 		return MockGenerateContentResponse(), nil
 	}
-	// --- 3. Select the model ---
+	// Select the model
 	model := client.GenerativeModel(modelName)
 
 	resp, err := model.GenerateContent(ctx, genai.Text(promptText))

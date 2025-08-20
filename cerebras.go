@@ -10,17 +10,12 @@ import (
 	"github.com/openai/openai-go/option"
 )
 
-// See https://inference-docs.cerebras.ai/introduction
-// Our free tier supports a context length of 8,192 tokens
-// For all supported models, we also offer context lengths up to 128K upon request
-const cerebrasDefaultModel = "llama-4-scout-17b-16e-instruct"
-
 func CerebrasGenChatCompletionMock() *openai.ChatCompletion {
 	return &openai.ChatCompletion{
 		ID:      "cerebras-mock-123",
 		Object:  "chat.completion",
 		Created: 1677652288, // Example timestamp
-		Model:   cerebrasDefaultModel,
+		Model:   DefaultModels.Cerebras,
 		Choices: []openai.ChatCompletionChoice{
 			{
 				Index: 0,
@@ -62,7 +57,7 @@ func CerebrasLowerWrapper(promptText string, mock bool) *openai.ChatCompletion {
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(promptText),
 		},
-		Model: cerebrasDefaultModel,
+		Model: DefaultModels.Cerebras,
 	})
 
 	if err != nil {

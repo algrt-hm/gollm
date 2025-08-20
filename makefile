@@ -2,6 +2,13 @@
 
 PROJECT = gollm
 
+update:
+	go get -u github.com/openai/openai-go
+	go get -u github.com/google/generative-ai-go/genai
+
+dev: build-macos-arm64
+	gollm -h
+
 code:
 	code .
 
@@ -19,8 +26,12 @@ build: build-linux build-macos build-windows
 build-linux:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./bin/$(PROJECT)-linux-amd64 *.go
 
-build-macos:
+build-macos: build-macos-arm64 build-macos-amd64
+
+build-macos-arm64:
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o ./bin/$(PROJECT)-darwin-arm64 *.go
+
+build-macos-amd64:
 	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o ./bin/$(PROJECT)-darwin-amd64 *.go
 
 build-windows:

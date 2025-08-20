@@ -171,6 +171,21 @@ func RenderWithGlamour(text string) {
 	fmt.Print(out)
 }
 
+func fmtDefaultModels() string {
+	s := `Default models:
+	 - Perplexity: %s
+	 - ChatGPT: %s
+	 - Gemini: %s
+	 - Cerebras: %s`
+
+	return "\t" + fmt.Sprintf(s,
+		DefaultModels.Perplexity,
+		DefaultModels.ChatGPT,
+		DefaultModels.Gemini,
+		DefaultModels.Cerebras,
+	) + "\n"
+}
+
 func PrintUsage(connectedToInternet bool) {
 	usageFmt := `%s [options] [model]
 
@@ -202,7 +217,6 @@ func PrintUsage(connectedToInternet bool) {
 
 	# For Cerebras
 	export %s="your Cerebras API key here"
-
 `
 	apiKeyExtendo := "\t - You already have %s set\n"
 
@@ -244,7 +258,7 @@ func PrintUsage(connectedToInternet bool) {
 
 	usageFmt += "\n"
 	usage := fmt.Sprintf(usageFmt, os.Args[0], perplexityApiKey, chatGPTApiKey, geminiApiKey, cerebrasApiKey)
-	fmt.Print(usage)
+	fmt.Print(usage + fmtDefaultModels())
 }
 
 func main() {
