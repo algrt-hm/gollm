@@ -24,6 +24,27 @@ type ModelResponse struct {
 	FinishReason string
 }
 
+// struct for options
+type optionsStruct struct {
+	useGemini     bool
+	usePerplexity bool
+	useChatGPT    bool
+	useCerebras   bool
+	logToJsonl    bool
+	quietMode     bool
+
+	readLog    bool
+	readLogIdx int
+
+	printUsage       bool
+	printAPIKeys     bool
+	listGeminiModels bool
+	listOpenAIModels bool
+
+	// Our promptText text will go in here
+	promptText string
+}
+
 // Globals with various environment variable names for API keys
 const perplexityApiKey = "PERPLEXITY_API_KEY"
 const geminiApiKey = "GEMINI_API_KEY"
@@ -36,7 +57,9 @@ const cerebrasApiKey = "CEREBRAS_API_KEY"
 // - we don't need headers or footers
 var quietMode bool = false
 
-// TODO: 'finished due to: ' in Gemini output doesn't work
+var logPath string
+var logPathToPrint string
+var connected bool
 
 // CheckInternetHTTP attempts to make an HTTP GET request to a reliable server.
 // It uses a timeout to avoid hanging indefinitely.
@@ -190,9 +213,6 @@ func fmtDefaultModels() string {
 func PrintUsage(connectedToInternet bool, logPath string) {
 	// The logging path is dynamic
 
-	// For tidiness we replace $HOME with ~ in logPath
-	logPath = strings.Replace(logPath, getHomeDir(), "~", 1)
-
 	usageFmt := `%s [options] [model]
 
 	options:
@@ -263,24 +283,193 @@ func PrintUsage(connectedToInternet bool, logPath string) {
 	}
 
 	usageFmt += "\n"
-	usage := fmt.Sprintf(usageFmt, os.Args[0], logPath, perplexityApiKey, chatGPTApiKey, geminiApiKey, cerebrasApiKey)
+	usage := fmt.Sprintf(usageFmt, os.Args[0], logPathToPrint, perplexityApiKey, chatGPTApiKey, geminiApiKey, cerebrasApiKey)
 	fmt.Print(usage + fmtDefaultModels())
 }
 
-func main() {
-	useGemini, usePerplexity, useChatGPT, useCerebras := false, false, false, false
-	logToJsonl := false
+func readStdin(showPrompt bool) string {
+	reader := bufio.NewReader(os.Stdin)
 
-	// We do this here because we want the result in PrintUsage()
-	connected, err := CheckInternetHTTP()
+	if showPrompt {
+		// Interactive mode, display prompt
+		fmt.Print("Prompt (press Ctrl+D when done) > ")
+	}
 
-	// Ditto
-	logPath := getLogPath()
+	inputBytes, err := io.ReadAll(reader) // Read until EOF
 
-	argc := len(os.Args)
+	if err != nil {
+		Fatalf("Failed to read input: %v", err)
+	}
+	// impliedly input is good
 
-	for idx, each := range os.Args {
+	return strings.TrimSpace(string(inputBytes)) // Convert bytes to string
+}
+
+func readPipe() string {
+	// Check if stdin is coming from a pipe or redirection
+	fileInfo, _ := os.Stdin.Stat()
+	isPipe := (fileInfo.Mode() & os.ModeCharDevice) == 0
+
+	// Empty string if there's nothing coming in through stdin
+	if !isPipe {
+		return ""
+	}
+
+	return readStdin(false)
+}
+
+func callModels(o optionsStruct) {
+
+	// Tell the user which models we're using
+	var modelsNameSlice []string
+
+	if o.useCerebras {
+		modelsNameSlice = append(modelsNameSlice, "Cerebras")
+	}
+
+	if o.usePerplexity {
+		modelsNameSlice = append(modelsNameSlice, "Perplexity")
+	}
+
+	if o.useGemini {
+		modelsNameSlice = append(modelsNameSlice, "Gemini")
+	}
+
+	if o.useChatGPT {
+		modelsNameSlice = append(modelsNameSlice, "ChatGPT")
+	}
+
+	if o.useCerebras || o.usePerplexity || o.useGemini || o.useChatGPT {
+		sort.Strings(modelsNameSlice)
+		outS := strings.Join(modelsNameSlice, ", ")
+		Print("Using " + outS)
+	}
+
+	// Let the user know if we're logging
+	if !o.quietMode {
+		Print("Logging to " + logPathToPrint)
+	}
+
+	// Check we have API keys as required
+	if o.useChatGPT && getChatGPTAPIKey() == "" {
+		Fatalf("Please set environment variable %s to use ChatGPT", chatGPTApiKey)
+	}
+
+	if o.useGemini && getGeminiAPIKey() == "" {
+		Fatalf("Please set environment variable %s to use Gemini", geminiApiKey)
+	}
+
+	if o.usePerplexity && getPerplexityAPIKey() == "" {
+		Fatalf("Please set environment variable %s to use Perplexity", perplexityApiKey)
+	}
+
+	if o.useCerebras && getCerebrasAPIKey() == "" {
+		Fatalf("Please set environment variable %s to use Cerebras", cerebrasApiKey)
+	}
+
+	// --- Run API calls concurrently ---
+	var wg sync.WaitGroup
+
+	if o.usePerplexity {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			Print("Hitting Perplexity API ...")
+			Render(PerplexityWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+		}()
+	}
+
+	if o.useChatGPT {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			Print("Hitting ChatGPT API ...")
+			Render(ChatGPTWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+		}()
+	}
+
+	if o.useGemini {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			Print("Hitting Gemini API ...")
+			Render(GeminiWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+		}()
+	}
+
+	if o.useCerebras {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			Print("Hitting Cerebras API ...")
+			Render(CerebrasWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+		}()
+	}
+
+	// Wait here ensures main doesn't exit before goroutines finish
+	wg.Wait()
+
+	if !o.quietMode {
+		RenderWithGlamour("\n# Done\n")
+	} else {
+		fmt.Fprintf(os.Stderr, "\n(Not logged as quiet mode activated)\n")
+	}
+}
+
+func core(o optionsStruct) {
+	// Run any of the single option bits
+
+	// ReadLogIdx
+	if o.readLog {
+		ReadLogIdx(o.readLogIdx)
+		os.Exit(0)
+	}
+
+	// PrintUsage
+	if o.printUsage {
+		PrintUsage(connected, logPath)
+		os.Exit(0)
+	}
+
+	// PrintAPIKeys
+	if o.printAPIKeys {
+		PrintAPIKeys()
+		os.Exit(0)
+	}
+
+	// ListGeminiModels
+	if o.listGeminiModels {
+		fmt.Println(ListGeminiModels())
+		os.Exit(0)
+	}
+
+	// ListOpenAIModels
+	if o.listOpenAIModels {
+		fmt.Println(ListOpenAIModels())
+		os.Exit(0)
+	}
+
+	// TODO: need to strip this
+	n := len([]rune(o.promptText))
+
+	// Ask for input if we don't have any from stdin
+	if n == 0 {
+		o.promptText = readStdin(true)
+	}
+
+	callModels(o)
+}
+
+func handleOpts(argv []string, argc int) optionsStruct {
+	var opts optionsStruct
+
+	opts.useGemini, opts.usePerplexity, opts.useChatGPT, opts.useCerebras = false, false, false, false
+	opts.logToJsonl = false
+	opts.readLog = false
+
+	for idx, each := range argv {
 		if strings.Contains(each, "-rl") {
+			opts.readLog = true
 			// negative means print all
 			var logIdx = -1
 			// TODO: should look ahead and see if the next argument can be an integer
@@ -295,197 +484,111 @@ func main() {
 					logIdx = intArg
 				}
 			}
-
-			ReadLogIdx(logIdx)
-			os.Exit(0)
+			opts.readLogIdx = logIdx
 		}
 
 		if strings.Contains(each, "-h") {
-			PrintUsage(connected, logPath)
-			os.Exit(0)
+			opts.printUsage = true
 		}
 
 		if strings.Contains(each, "-t") {
-			PrintAPIKeys()
-			os.Exit(0)
+			opts.printAPIKeys = true
 		}
 
 		if strings.Contains(each, "-lg") {
-			fmt.Println(ListGeminiModels())
-			os.Exit(0)
+			opts.listGeminiModels = true
 		}
 
 		if strings.Contains(each, "-lc") {
-			fmt.Println(ListOpenAIModels())
-			os.Exit(0)
+			opts.listOpenAIModels = true
 		}
 
 		if strings.Contains(each, "-q") {
-			quietMode = true
+			opts.quietMode = true
 
-			if logToJsonl {
-				logToJsonl = false
+			if opts.logToJsonl {
+				opts.logToJsonl = false
 			}
 		}
 
 		if strings.Contains(each, "-l") {
-			if quietMode {
+			if opts.quietMode {
 				fmt.Fprintf(os.Stderr, "Ignoring logging arg as quiet mode activated\n")
 			} else {
-				logToJsonl = true
+				opts.logToJsonl = true
 			}
 		}
 
 		if strings.Contains(each, "-c") {
-			useChatGPT = true
+			opts.useChatGPT = true
 			break
 		}
 
 		if strings.Contains(each, "-g") {
-			useGemini = true
+			opts.useGemini = true
 			break
 		}
 
 		if strings.Contains(each, "-p") {
-			usePerplexity = true
+			opts.usePerplexity = true
 			break
 		}
 
 		if strings.Contains(each, "-f") {
-			useCerebras = true
+			opts.useCerebras = true
 			break
 		}
 
 		// Cerebras and ChatGPT combo
 		if strings.Contains(each, "-b") {
-			useCerebras = true
-			useChatGPT = true
+			opts.useCerebras = true
+			opts.useChatGPT = true
 			break
 		}
 	}
 
 	// If none explicitly selected then use all
-	if !(useChatGPT || useGemini || usePerplexity || useCerebras) {
-		useChatGPT, useGemini, usePerplexity, useCerebras = true, true, true, true
+	if !(opts.useChatGPT || opts.useGemini || opts.usePerplexity || opts.useCerebras) {
+		opts.useChatGPT, opts.useGemini, opts.usePerplexity, opts.useCerebras = true, true, true, true
 	}
 
-	// Tell the user which models we're using
-	var modelsNameSlice []string
+	// TODO: last arg may be prompt
+	// we'll set this to an empty string for now
+	opts.promptText = ""
 
-	if useCerebras {
-		modelsNameSlice = append(modelsNameSlice, "Cerebras")
-	}
+	return opts
+}
 
-	if usePerplexity {
-		modelsNameSlice = append(modelsNameSlice, "Perplexity")
-	}
+func init() {
+	// Ditto
+	logPath = getLogPath()
 
-	if useGemini {
-		modelsNameSlice = append(modelsNameSlice, "Gemini")
-	}
+	// For tidiness we replace $HOME with ~ in logPath
+	logPathToPrint = strings.Replace(logPath, getHomeDir(), "~", 1)
 
-	if useChatGPT {
-		modelsNameSlice = append(modelsNameSlice, "ChatGPT")
-	}
-
-	if useCerebras || usePerplexity || useGemini || useChatGPT {
-		sort.Strings(modelsNameSlice)
-		outS := strings.Join(modelsNameSlice, ", ")
-		Print("Using " + outS)
-	}
-
-	// Let the user know if we're logging
-	if !quietMode {
-		Print("Logging to " + logPath)
-	}
-
-	if !connected {
-		Fatalf("Not connected to the internet. Err is %v\n", err)
-	}
-
-	// Check we have API keys as required
-	if useChatGPT && getChatGPTAPIKey() == "" {
-		Fatalf("Please set environment variable %s to use ChatGPT", chatGPTApiKey)
-	}
-
-	if useGemini && getGeminiAPIKey() == "" {
-		Fatalf("Please set environment variable %s to use Gemini", geminiApiKey)
-	}
-
-	if usePerplexity && getPerplexityAPIKey() == "" {
-		Fatalf("Please set environment variable %s to use Perplexity", perplexityApiKey)
-	}
-
-	if useCerebras && getCerebrasAPIKey() == "" {
-		Fatalf("Please set environment variable %s to use Cerebras", cerebrasApiKey)
-	}
-
-	// --- Read prompt from stdin ---
-	reader := bufio.NewReader(os.Stdin)
-	var promptText string
-
-	// Check if stdin is coming from a pipe or redirection
-	fileInfo, _ := os.Stdin.Stat()
-	isPipe := (fileInfo.Mode() & os.ModeCharDevice) == 0
-
-	if !isPipe {
-		// Interactive mode, display prompt
-		fmt.Print("Prompt (press Ctrl+D when done) > ")
-	}
-	inputBytes, err := io.ReadAll(reader) // Read until EOF
+	// We do this here because we want the result in PrintUsage()
+	temp, err := CheckInternetHTTP()
 
 	if err != nil {
-		Fatalf("Failed to read input: %v", err)
-	}
-	// impliedly input is good
-
-	promptText = strings.TrimSpace(string(inputBytes)) // Convert bytes to string
-
-	// --- Run API calls concurrently ---
-	var wg sync.WaitGroup
-
-	if usePerplexity {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			Print("Hitting Perplexity API ...")
-			Render(PerplexityWrapper(promptText, false, logToJsonl, quietMode))
-		}()
+		Fatalf("Issue with checking internet connection. Err is %v\n", err)
 	}
 
-	if useChatGPT {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			Print("Hitting ChatGPT API ...")
-			Render(ChatGPTWrapper(promptText, false, logToJsonl, quietMode))
-		}()
-	}
+	// update global
+	connected = temp
+}
 
-	if useGemini {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			Print("Hitting Gemini API ...")
-			Render(GeminiWrapper(promptText, false, logToJsonl, quietMode))
-		}()
-	}
+func main() {
+	// handle args
+	argc := len(os.Args)
+	argv := os.Args
+	opts := handleOpts(argv, argc)
 
-	if useCerebras {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			Print("Hitting Cerebras API ...")
-			Render(CerebrasWrapper(promptText, false, logToJsonl, quietMode))
-		}()
-	}
+	// various bits of functionality use the quietMode global so we update this here
+	quietMode = opts.quietMode
 
-	// Wait here ensures main doesn't exit before goroutines finish
-	wg.Wait()
+	// get whatever is being piped in
+	opts.promptText += readPipe()
 
-	if !quietMode {
-		RenderWithGlamour("\n# Done\n")
-	} else {
-		fmt.Fprintf(os.Stderr, "\n(Not logged as quiet mode activated)\n")
-	}
+	// main bit of functionality
+	core(opts)
 }
