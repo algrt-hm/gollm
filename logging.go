@@ -22,22 +22,23 @@ type LogEntry struct {
 	Timestamp     time.Time `json:"timestamp"`
 }
 
-func getLogPath() (string, error) {
-	var err error = nil
-	const logFn string = "gollm_logs.jsonl"
-
+func getHomeDir() string {
 	// Get user's home directory
 	// Note: %w is the special formatting for errors
 	homeDir, err := os.UserHomeDir()
 
 	if err != nil {
-		err = fmt.Errorf("failed to get user home directory: %w", err)
+		Fatalf("failed to get user home directory: %s", err)
 	}
 
-	// Create log file path in home directory
-	logFilePath := filepath.Join(homeDir, logFn)
+	return homeDir
+}
 
-	return logFilePath, err
+func getLogPath() string {
+	const logFn string = "gollm_logs.jsonl"
+
+	// Create log file path in home directory
+	return filepath.Join(getHomeDir(), logFn)
 }
 
 // printLogEntry
@@ -67,10 +68,7 @@ func printLogEntry(i int, r LogEntry, incResponse bool) {
 func ReadLogIdx(logIdx int) error {
 	var logEntries []LogEntry
 
-	logFilePath, err := getLogPath()
-	if err != nil {
-		return err
-	}
+	logFilePath := getLogPath()
 
 	// Open file
 	file, err := os.OpenFile(logFilePath, os.O_RDONLY, 0)
@@ -136,10 +134,7 @@ func WriteLogEntry(entry LogEntry) error {
 		return fmt.Errorf("failed to marshal log entry: %w", err)
 	}
 
-	logFilePath, err := getLogPath()
-	if err != nil {
-		return err
-	}
+	logFilePath := getLogPath()
 
 	// Open file in append mode, create if doesn't exist
 	file, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)

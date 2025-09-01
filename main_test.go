@@ -19,5 +19,5 @@ func TestCheckInternetHTTP(t *testing.T) {
 }
 
 func TestPrintUsage(t *testing.T) {
-	PrintUsage(true)
+	PrintUsage(true, getLogPath())
 }

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -186,7 +187,12 @@ func fmtDefaultModels() string {
 	) + "\n"
 }
 
-func PrintUsage(connectedToInternet bool) {
+func PrintUsage(connectedToInternet bool, logPath string) {
+	// The logging path is dynamic
+
+	// For tidiness we replace $HOME with ~ in logPath
+	logPath = strings.Replace(logPath, getHomeDir(), "~", 1)
+
 	usageFmt := `%s [options] [model]
 
 	options:
@@ -194,7 +200,7 @@ func PrintUsage(connectedToInternet bool) {
 	-lg	list Gemini models
 	-lc	list OpenAI models
 	-t	test API keys (note: they will be displayed)
-	-l	enable logging of model interactions to ~/gollm_logs.jsonl
+	-l	enable logging of model interactions to %s
 	-q	quiet mode: turns off logging and all non-essential output
 	-rl	[index]	show the log index, or if an index is provided, show the LLM response
 
@@ -257,7 +263,7 @@ func PrintUsage(connectedToInternet bool) {
 	}
 
 	usageFmt += "\n"
-	usage := fmt.Sprintf(usageFmt, os.Args[0], perplexityApiKey, chatGPTApiKey, geminiApiKey, cerebrasApiKey)
+	usage := fmt.Sprintf(usageFmt, os.Args[0], logPath, perplexityApiKey, chatGPTApiKey, geminiApiKey, cerebrasApiKey)
 	fmt.Print(usage + fmtDefaultModels())
 }
 
@@ -267,6 +273,10 @@ func main() {
 
 	// We do this here because we want the result in PrintUsage()
 	connected, err := CheckInternetHTTP()
+
+	// Ditto
+	logPath := getLogPath()
+
 	argc := len(os.Args)
 
 	for idx, each := range os.Args {
@@ -291,7 +301,7 @@ func main() {
 		}
 
 		if strings.Contains(each, "-h") {
-			PrintUsage(connected)
+			PrintUsage(connected, logPath)
 			os.Exit(0)
 		}
 
@@ -315,13 +325,12 @@ func main() {
 
 			if logToJsonl {
 				logToJsonl = false
-				fmt.Fprintf(os.Stderr, "Not logging as quiet mode activated\n")
 			}
 		}
 
 		if strings.Contains(each, "-l") {
 			if quietMode {
-				fmt.Fprintf(os.Stderr, "Not logging as quiet mode activated\n")
+				fmt.Fprintf(os.Stderr, "Ignoring logging arg as quiet mode activated\n")
 			} else {
 				logToJsonl = true
 			}
@@ -329,35 +338,65 @@ func main() {
 
 		if strings.Contains(each, "-c") {
 			useChatGPT = true
-			Print("Using ChatGPT")
 			break
 		}
 
 		if strings.Contains(each, "-g") {
 			useGemini = true
-			Print("Using Gemini")
 			break
 		}
 
 		if strings.Contains(each, "-p") {
 			usePerplexity = true
-			Print("Using Perplexity")
 			break
 		}
 
 		if strings.Contains(each, "-f") {
 			useCerebras = true
-			Print("Using Cerebras")
+			break
+		}
+
+		// Cerebras and ChatGPT combo
+		if strings.Contains(each, "-b") {
+			useCerebras = true
+			useChatGPT = true
 			break
 		}
 	}
 
-	// Let the user know if we're logging
-	Print("Logging")
-
 	// If none explicitly selected then use all
 	if !(useChatGPT || useGemini || usePerplexity || useCerebras) {
 		useChatGPT, useGemini, usePerplexity, useCerebras = true, true, true, true
+	}
+
+	// Tell the user which models we're using
+	var modelsNameSlice []string
+
+	if useCerebras {
+		modelsNameSlice = append(modelsNameSlice, "Cerebras")
+	}
+
+	if usePerplexity {
+		modelsNameSlice = append(modelsNameSlice, "Perplexity")
+	}
+
+	if useGemini {
+		modelsNameSlice = append(modelsNameSlice, "Gemini")
+	}
+
+	if useChatGPT {
+		modelsNameSlice = append(modelsNameSlice, "ChatGPT")
+	}
+
+	if useCerebras || usePerplexity || useGemini || useChatGPT {
+		sort.Strings(modelsNameSlice)
+		outS := strings.Join(modelsNameSlice, ", ")
+		Print("Using " + outS)
+	}
+
+	// Let the user know if we're logging
+	if !quietMode {
+		Print("Logging to " + logPath)
 	}
 
 	if !connected {
@@ -446,5 +485,7 @@ func main() {
 
 	if !quietMode {
 		RenderWithGlamour("\n# Done\n")
+	} else {
+		fmt.Fprintf(os.Stderr, "\n(Not logged as quiet mode activated)\n")
 	}
 }
