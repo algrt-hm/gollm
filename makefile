@@ -2,12 +2,12 @@
 
 PROJECT = gollm
 
+dev: build
+	gollm -h
+
 update:
 	go get -u github.com/openai/openai-go
 	go get -u github.com/google/generative-ai-go/genai
-
-dev: build-macos-arm64
-	gollm -h
 
 code:
 	code .

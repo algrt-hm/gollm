@@ -178,7 +178,7 @@ func PrintAPIKeys() {
 }
 
 func RenderWithGlamour(text string) {
-	// Use Glamour for rendering                                                                                                                                // You can customize options like style (dark, light, notty), word wrap, etc.                                                                               // Default options:
+	// Use Glamour for rendering                                                                                                                                
 	renderer, err := glamour.NewTermRenderer(glamour.WithAutoStyle(), glamour.WithWordWrap(0))
 
 	if err != nil {
@@ -410,7 +410,7 @@ func callModels(o optionsStruct) {
 	wg.Wait()
 
 	if !o.quietMode {
-		RenderWithGlamour("\n# Done\n")
+		RenderWithGlamour("# Done\n")
 	} else {
 		fmt.Fprintf(os.Stderr, "\n(Not logged as quiet mode activated)\n")
 	}
@@ -467,6 +467,7 @@ func handleOpts(argv []string, argc int) optionsStruct {
 	opts.logToJsonl = false
 	opts.readLog = false
 
+	// loop through each arg
 	for idx, each := range argv {
 		if strings.Contains(each, "-rl") {
 			opts.readLog = true
@@ -478,10 +479,13 @@ func handleOpts(argv []string, argc int) optionsStruct {
 			// if there is a next arg
 			if idx+1 < argc {
 				// try to atoi the next arg
-				intArg, err := strconv.Atoi(os.Args[idx+1])
+				intArg, err := strconv.Atoi(argv[idx+1])
 				// if successful use it
 				if err == nil {
 					logIdx = intArg
+				// otherwise we need to raise an error
+				} else {
+					Fatalf("Invalid log index: %s, error is %s", argv[idx+1], err.Error())
 				}
 			}
 			opts.readLogIdx = logIdx
@@ -547,14 +551,29 @@ func handleOpts(argv []string, argc int) optionsStruct {
 		}
 	}
 
-	// If none explicitly selected then use all
-	if !(opts.useChatGPT || opts.useGemini || opts.usePerplexity || opts.useCerebras) {
-		opts.useChatGPT, opts.useGemini, opts.usePerplexity, opts.useCerebras = true, true, true, true
+	// Functionality for including the prompt as an argument
+	// If we specify a model OR no models are specified
+	if (opts.useChatGPT || opts.useGemini || opts.usePerplexity || opts.useCerebras) || !(opts.useChatGPT || opts.useGemini || opts.usePerplexity || opts.useCerebras) {
+		// and we have not set readLog
+		if !opts.readLog {
+			// take the last arg
+			// i.e. argv[argc-1]
+			// and see if there is the flag character "-" in it
+			// if not we assume it is the prompt
+			if !strings.Contains(argv[argc-1], "-") {
+				opts.promptText = argv[argc-1]
+			}
+		}
 	}
 
-	// TODO: last arg may be prompt
-	// we'll set this to an empty string for now
-	opts.promptText = ""
+	// If none explicitly selected
+	if !(opts.useChatGPT || opts.useGemini || opts.usePerplexity || opts.useCerebras) {
+		// and we have not set readLog
+		if !opts.readLog {
+			// then use all models
+			opts.useChatGPT, opts.useGemini, opts.usePerplexity, opts.useCerebras = true, true, true, true
+		}
+	}
 
 	return opts
 }
