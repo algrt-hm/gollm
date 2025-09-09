@@ -90,4 +90,35 @@ func TestHandleOpts(t *testing.T) {
 		t.Errorf("\nExpected %+v\nGot %+v", expected, ret)
 	}
 
+	// If we want ChatGPT and Gemini ...
+	expectedPrompt := "Expected prompt"
+
+	expected = optionsStruct{
+		useGemini:     true,
+		usePerplexity: false,
+		useChatGPT:    true,
+		useCerebras:   false,
+		logToJsonl:    false,
+		quietMode:     false,
+
+		readLog:    false,
+		readLogIdx: 0,
+
+		printUsage:       false,
+		printAPIKeys:     false,
+		listGeminiModels: false,
+		listOpenAIModels: false,
+
+		promptText: expectedPrompt,
+	}
+
+	// -c and -g with prompt
+	argv = []string{"-c", "-g", expectedPrompt}
+	fmt.Printf("argv: %v\n", argv)
+
+	ret = handleOpts(argv, len(argv))
+	if ret != expected {
+		t.Errorf("\nExpected %+v\nGot %+v", expected, ret)
+	}
+
 }

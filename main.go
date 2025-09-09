@@ -525,29 +525,24 @@ func handleOpts(argv []string, argc int) optionsStruct {
 
 		if strings.Contains(each, "-c") {
 			opts.useChatGPT = true
-			break
 		}
 
 		if strings.Contains(each, "-g") {
 			opts.useGemini = true
-			break
 		}
 
 		if strings.Contains(each, "-p") {
 			opts.usePerplexity = true
-			break
 		}
 
 		if strings.Contains(each, "-f") {
 			opts.useCerebras = true
-			break
 		}
 
 		// Cerebras and ChatGPT combo
 		if strings.Contains(each, "-b") {
 			opts.useCerebras = true
 			opts.useChatGPT = true
-			break
 		}
 	}
 
