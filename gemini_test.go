@@ -3,6 +3,11 @@ package main
 import "testing"
 
 func TestGeminiWrapper(t *testing.T) {
-	quietMode = true
+	// To turn off output if we don't want it
+	if testingSuppressOutput {
+		t.Cleanup(func() { RenderWithGlamourIndirect = RenderWithGlamour })
+		RenderWithGlamourIndirect = func(s string) {}
+	}
+	quietMode = false
 	Render(GeminiWrapper("Mock prompt", true, false, quietMode))
 }

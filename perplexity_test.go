@@ -10,8 +10,19 @@ import (
 )
 
 func TestPerplexityWrapper(t *testing.T) {
+	// To turn off output if we don't want it
+	if testingSuppressOutput {
+		// Get before we overwrite ...
+		orig := RenderWithGlamourIndirect
+		// ... and put it back again
+		defer func() {
+			RenderWithGlamourIndirect = orig
+		}()
+		// noop
+		RenderWithGlamourIndirect = func(s string) {}
+	}
+	quietMode = false
 	promptText := "Please tell me about Perplexity"
-	quietMode = true
 
 	Render(PerplexityWrapper(promptText, true, false, quietMode))
 }

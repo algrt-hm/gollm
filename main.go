@@ -51,6 +51,10 @@ const geminiApiKey = "GEMINI_API_KEY"
 const chatGPTApiKey = "OPENAI_API_KEY"
 const cerebrasApiKey = "CEREBRAS_API_KEY"
 
+// Suppress output for tests
+// ... can be nice in development to turn this off for the full output in tests
+const testingSuppressOutput = true
+
 // if quiet mode is enabled:
 // - we turn off logging
 // - we can use raw print not glamour
@@ -60,6 +64,9 @@ var quietMode bool = false
 var logPath string
 var logPathToPrint string
 var connected bool
+
+// So we can point this to a noop for testing
+var RenderWithGlamourIndirect = RenderWithGlamour
 
 // CheckInternetHTTP attempts to make an HTTP GET request to a reliable server.
 // It uses a timeout to avoid hanging indefinitely.
@@ -104,7 +111,7 @@ func Print(s string) (int, error) {
 func Render(s string) {
 	// not quietMode is the default case
 	if !quietMode {
-		RenderWithGlamour(s)
+		RenderWithGlamourIndirect(s)
 	} else {
 		fmt.Println(s)
 	}

@@ -5,26 +5,19 @@ import (
 	"testing"
 )
 
-func TestPrintAPIKeys(t *testing.T) {
-	PrintAPIKeys()
-}
-
-func TestCheckInternetHTTP(t *testing.T) {
-	ret, err := CheckInternetHTTP()
-	if ret {
-		fmt.Println("Connected to internet")
-	} else {
-		fmt.Printf("Connected to internet %v: %v", ret, err)
-	}
-}
-
-func TestPrintUsage(t *testing.T) {
-	PrintUsage(true, getLogPath())
-}
-
 func TestHandleOpts(t *testing.T) {
-
 	prompt := "Please tell me about yourself"
+
+	// utility to print argv for development
+	printArgv := func(argv []string) {
+		fmt.Printf("argv: %v\n", argv)
+	}
+
+	if testingSuppressOutput {
+		printArgv = func(argv []string) {
+			// don't print
+		}
+	}
 
 	// Test that when no -rl the last argument can be considered a prompt
 	expected := optionsStruct{
@@ -49,7 +42,7 @@ func TestHandleOpts(t *testing.T) {
 	// Prompt as only arg
 	// all models as none selected through args
 	argv := []string{prompt}
-	fmt.Printf("argv: %v\n", argv)
+	printArgv(argv)
 
 	ret := handleOpts(argv, len(argv))
 	if ret != expected {
@@ -83,7 +76,7 @@ func TestHandleOpts(t *testing.T) {
 
 	// -rl with idx 10
 	argv = []string{"-rl", "10"}
-	fmt.Printf("argv: %v\n", argv)
+	printArgv(argv)
 
 	ret = handleOpts(argv, len(argv))
 	if ret != expected {
@@ -114,7 +107,7 @@ func TestHandleOpts(t *testing.T) {
 
 	// -c and -g with prompt
 	argv = []string{"-c", "-g", expectedPrompt}
-	fmt.Printf("argv: %v\n", argv)
+	printArgv(argv)
 
 	ret = handleOpts(argv, len(argv))
 	if ret != expected {
