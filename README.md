@@ -46,33 +46,48 @@ If you only want to use one model, you can specify that with flags ...
 ```
 gollm [options] [model]
 
-        options:
-        -h      show (this) help
-        -lg     list Gemini models
-        -t      test API keys (note: they will be displayed)
-        -l      enable logging of model interactions to ~/gollm_logs.jsonl
-        -q      quiet mode: turns off logging and all non-essential output
-        -rl     [index] show the log index, or if an index is provided, show the LLM response
+options:
+-h	show (this) help
+-lg	list Gemini models
+-lc	list OpenAI models
+-t	test API keys (note: they will be displayed)
+-l	enable logging of model interactions to ~/gollm_logs.jsonl
+-q	quiet mode: turns off logging and all non-essential output
+-rl	[index]	show the log index, or if an index is provided, show the LLM response
 
-        model:
-        -c      use ChatGPT
-        -g      use Gemini
-        -f      use Cerebras
-        -p      use Perplexity
+model:
+-c	use ChatGPT
+-g	use Gemini
+-f	use Cerebras
+-p	use Perplexity
 
-        API keys should be set using the environment variables below:
+API keys should be set using the environment variables below:
 
-        # For Perplexity
-        export PERPLEXITY_API_KEY="your Perplexity API key here"
+# For Perplexity
+export PERPLEXITY_API_KEY="your Perplexity API key here"
 
-        # For ChatGPT
-        export OPENAI_API_KEY="your OpenAI API key here"
+# For ChatGPT
+export OPENAI_API_KEY="your OpenAI API key here"
 
-        # For Gemini
-        export GEMINI_API_KEY="your Gemini API key here"
+# For Gemini
+export GEMINI_API_KEY="your Gemini API key here"
 
-        # For Cerebras
-        export CEREBRAS_API_KEY="your Cerebras API key here"
+# For Cerebras
+export CEREBRAS_API_KEY="your Cerebras API key here"
+
+Setup:
+- You already have PERPLEXITY_API_KEY set
+- You already have OPENAI_API_KEY set
+- You already have GEMINI_API_KEY set
+- You already have CEREBRAS_API_KEY set
+- You are connected to the internet
+- We're ready to rumble :)
+
+Default models:
+- Perplexity: sonar-pro
+- ChatGPT: gpt-5
+- Gemini: models/gemini-2.5-pro
+- Cerebras: gpt-oss-120b
 ```
 
 ## Logging

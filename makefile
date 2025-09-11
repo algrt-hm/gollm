@@ -2,7 +2,7 @@
 
 PROJECT = gollm
 
-dev: build
+dev: build-linux
 	gollm -h
 
 update:

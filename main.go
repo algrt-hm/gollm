@@ -204,12 +204,12 @@ func RenderWithGlamour(text string) {
 
 func fmtDefaultModels() string {
 	s := `Default models:
-	 - Perplexity: %s
-	 - ChatGPT: %s
-	 - Gemini: %s
-	 - Cerebras: %s`
+- Perplexity: %s
+- ChatGPT: %s
+- Gemini: %s
+- Cerebras: %s`
 
-	return "\t" + fmt.Sprintf(s,
+	return fmt.Sprintf(s,
 		DefaultModels.Perplexity,
 		DefaultModels.ChatGPT,
 		DefaultModels.Gemini,
@@ -217,41 +217,41 @@ func fmtDefaultModels() string {
 	) + "\n"
 }
 
-func PrintUsage(connectedToInternet bool, logPath string) {
+func PrintUsage(connectedToInternet bool, logPath string) string {
 	// The logging path is dynamic
 
 	usageFmt := `%s [options] [model]
 
-	options:
-	-h	show (this) help
-	-lg	list Gemini models
-	-lc	list OpenAI models
-	-t	test API keys (note: they will be displayed)
-	-l	enable logging of model interactions to %s
-	-q	quiet mode: turns off logging and all non-essential output
-	-rl	[index]	show the log index, or if an index is provided, show the LLM response
+options:
+-h	show (this) help
+-lg	list Gemini models
+-lc	list OpenAI models
+-t	test API keys (note: they will be displayed)
+-l	enable logging of model interactions to %s
+-q	quiet mode: turns off logging and all non-essential output
+-rl	[index]	show the log index, or if an index is provided, show the LLM response
 
-	model:
-	-c	use ChatGPT
-	-g	use Gemini
-	-f	use Cerebras
-	-p	use Perplexity
+model:
+-c	use ChatGPT
+-g	use Gemini
+-f	use Cerebras
+-p	use Perplexity
 
-	API keys should be set using the environment variables below:
+API keys should be set using the environment variables below:
 
-	# For Perplexity
-	export %s="your Perplexity API key here"
+# For Perplexity
+export %s="your Perplexity API key here"
 
-	# For ChatGPT
-	export %s="your OpenAI API key here"
+# For ChatGPT
+export %s="your OpenAI API key here"
 
-	# For Gemini
-	export %s="your Gemini API key here"
+# For Gemini
+export %s="your Gemini API key here"
 
-	# For Cerebras
-	export %s="your Cerebras API key here"
+# For Cerebras
+export %s="your Cerebras API key here"
 `
-	apiKeyExtendo := "\t - You already have %s set\n"
+	apiKeyExtendo := "- You already have %s set\n"
 
 	haveGeminiAPIKey := getGeminiAPIKey() != ""
 	havePerplexityAPIKey := getPerplexityAPIKey() != ""
@@ -260,7 +260,7 @@ func PrintUsage(connectedToInternet bool, logPath string) {
 
 	// If we have any of the keys
 	if haveGeminiAPIKey || havePerplexityAPIKey || haveChatGPTAPIKey || haveCerebrasAPIKey {
-		usageFmt += "\n\tSetup:\n"
+		usageFmt += "\nSetup:\n"
 
 		if havePerplexityAPIKey {
 			usageFmt += fmt.Sprintf(apiKeyExtendo, perplexityApiKey)
@@ -282,16 +282,17 @@ func PrintUsage(connectedToInternet bool, logPath string) {
 	// TODO: should we do something if impliedly we have none?
 
 	if connectedToInternet {
-		usageFmt += "\t - You are connected to the internet\n"
+		usageFmt += "- You are connected to the internet\n"
 	}
 
 	if haveChatGPTAPIKey && haveGeminiAPIKey && havePerplexityAPIKey && haveCerebrasAPIKey && connectedToInternet {
-		usageFmt += "\t - We're ready to rumble :)\n"
+		usageFmt += "- We're ready to rumble :)\n"
 	}
 
 	usageFmt += "\n"
-	usage := fmt.Sprintf(usageFmt, os.Args[0], logPathToPrint, perplexityApiKey, chatGPTApiKey, geminiApiKey, cerebrasApiKey)
-	fmt.Print(usage + fmtDefaultModels())
+	// usage := fmt.Sprintf(usageFmt, os.Args[0], logPathToPrint, perplexityApiKey, chatGPTApiKey, geminiApiKey, cerebrasApiKey)
+	usage := fmt.Sprintf(usageFmt, "gollm", logPathToPrint, perplexityApiKey, chatGPTApiKey, geminiApiKey, cerebrasApiKey)
+	return usage + fmtDefaultModels()
 }
 
 func readStdin(showPrompt bool) string {
@@ -434,7 +435,7 @@ func core(o optionsStruct) {
 
 	// PrintUsage
 	if o.printUsage {
-		PrintUsage(connected, logPath)
+		fmt.Println(PrintUsage(connected, logPath))
 		os.Exit(0)
 	}
 
