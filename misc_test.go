@@ -186,15 +186,36 @@ func TestHandleOpts(t *testing.T) {
 		}
 	})
 
-	t.Run("read_log_without_index_should_error", func(t *testing.T) {
-		// -rl on its own should return an error
+	t.Run("read_log_without_index_is_fine", func(t *testing.T) {
+		// -rl on its own should is fine
 		argv := []string{"-rl"}
 		printArgv(argv)
 
-		_, err := handleOpts(argv, len(argv))
-		expectedErr := fmt.Errorf("-rl requires an index")
-		if err == nil || err.Error() != expectedErr.Error() {
-			t.Errorf("\nExpected error %+v\nGot %+v", expectedErr, err)
+		expected := optionsStruct{
+			useGemini:     false,
+			usePerplexity: false,
+			useChatGPT:    false,
+			useCerebras:   false,
+			logToJsonl:    false,
+			quietMode:     false,
+
+			readLog:    true,
+			readLogIdx: -1,
+
+			printUsage:       false,
+			printAPIKeys:     false,
+			listGeminiModels: false,
+			listOpenAIModels: false,
+
+			promptText: "",
+		}
+
+		ret, err := handleOpts(argv, len(argv))
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if ret != expected {
+			t.Errorf("\nExpected %+v\nGot %+v", expected, ret)
 		}
 	})
 

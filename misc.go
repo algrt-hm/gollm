@@ -128,9 +128,6 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 				} else {
 					Fatalf("Invalid log index: %s, error is %s", argv[idx+1], err.Error())
 				}
-			} else {
-				// impliedly no next arg which suggest -rl but no index provided
-				return opts, fmt.Errorf("-rl requires an index")
 			}
 			opts.readLogIdx = logIdx
 		}
