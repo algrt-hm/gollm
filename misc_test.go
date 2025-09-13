@@ -61,3 +61,161 @@ func TestFilletHelp(t *testing.T) {
 		t.Errorf("Expected help from readme to match help from code, help from readme is:\n%s\nhelp from code is:\n%s", helpFromReadme, helpFromCode)
 	}
 }
+
+func TestHandleOpts(t *testing.T) {
+	// utility to print argv for development
+	printArgv := func(argv []string) {
+		fmt.Printf("argv: %v\n", argv)
+	}
+
+	if testingSuppressOutput {
+		printArgv = func(argv []string) {
+			// don't print
+		}
+	}
+
+	t.Run("prompt_only_argument", func(t *testing.T) {
+		prompt := "Please tell me about yourself"
+
+		// Test that when no -rl the last argument can be considered a prompt
+		expected := optionsStruct{
+			useGemini:     true,
+			usePerplexity: true,
+			useChatGPT:    true,
+			useCerebras:   true,
+			logToJsonl:    false,
+			quietMode:     false,
+
+			readLog:    false,
+			readLogIdx: 0,
+
+			printUsage:       false,
+			printAPIKeys:     false,
+			listGeminiModels: false,
+			listOpenAIModels: false,
+
+			promptText: prompt,
+		}
+
+		// Prompt as only arg
+		// all models as none selected through args
+		argv := []string{prompt}
+		printArgv(argv)
+
+		ret, err := handleOpts(argv, len(argv))
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if ret != expected {
+			t.Errorf("\nExpected %+v\nGot %+v", expected, ret)
+		}
+	})
+
+	t.Run("read_log_with_index", func(t *testing.T) {
+		// Test that when -rl the last argument can not be considered a prompt
+		// we expect
+		// readLog to be true
+		// readLogIdx == 10
+		// promptText == ""
+
+		expected := optionsStruct{
+			useGemini:     false,
+			usePerplexity: false,
+			useChatGPT:    false,
+			useCerebras:   false,
+			logToJsonl:    false,
+			quietMode:     false,
+
+			readLog:    true,
+			readLogIdx: 10,
+
+			printUsage:       false,
+			printAPIKeys:     false,
+			listGeminiModels: false,
+			listOpenAIModels: false,
+
+			promptText: "",
+		}
+
+		// -rl with idx 10
+		argv := []string{"-rl", "10"}
+		printArgv(argv)
+
+		ret, err := handleOpts(argv, len(argv))
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if ret != expected {
+			t.Errorf("\nExpected %+v\nGot %+v", expected, ret)
+		}
+	})
+
+	t.Run("multiple_model_flags_with_prompt", func(t *testing.T) {
+		// If we want ChatGPT and Gemini ...
+		expectedPrompt := "Expected prompt"
+
+		expected := optionsStruct{
+			useGemini:     true,
+			usePerplexity: false,
+			useChatGPT:    true,
+			useCerebras:   false,
+			logToJsonl:    false,
+			quietMode:     false,
+
+			readLog:    false,
+			readLogIdx: 0,
+
+			printUsage:       false,
+			printAPIKeys:     false,
+			listGeminiModels: false,
+			listOpenAIModels: false,
+
+			promptText: expectedPrompt,
+		}
+
+		// -c and -g with prompt
+		argv := []string{"-c", "-g", expectedPrompt}
+		printArgv(argv)
+
+		ret, err := handleOpts(argv, len(argv))
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if ret != expected {
+			t.Errorf("\nExpected %+v\nGot %+v", expected, ret)
+		}
+	})
+
+	t.Run("read_log_without_index_should_error", func(t *testing.T) {
+		// -rl on its own should return an error
+		argv := []string{"-rl"}
+		printArgv(argv)
+
+		_, err := handleOpts(argv, len(argv))
+		expectedErr := fmt.Errorf("-rl requires an index")
+		if err == nil || err.Error() != expectedErr.Error() {
+			t.Errorf("\nExpected error %+v\nGot %+v", expectedErr, err)
+		}
+	})
+
+	t.Run("read_log_with_model_flag_should_error", func(t *testing.T) {
+		// -rl with an index with a model is somewhat confusing so should result in an error
+		argv := []string{"-rl", "1", "-c"}
+		printArgv(argv)
+
+		_, err := handleOpts(argv, len(argv))
+		expectedErr := fmt.Errorf("-rl provided with a model specifier flag, please provide just one or the other")
+		if err == nil || err.Error() != expectedErr.Error() {
+			t.Errorf("\nExpected error %+v\nGot %+v", expectedErr, err)
+		}
+	})
+}
+
+func TestCheckCarriageReturns(t *testing.T) {
+	// check testSillyWin returns false
+	// This test assumes there are no .go files with carriage returns in the current directory.
+	got := checkCarriageReturns()
+	if got {
+		t.Errorf("Expected checkCarriageReturns to return false, got true")
+	}
+}

@@ -2,7 +2,7 @@
 
 PROJECT = gollm
 
-dev: build-linux
+dev: build
 	gollm -h
 
 update:
@@ -20,6 +20,9 @@ test:
 
 fmt:
 	go fmt ./*go
+
+fmt-fix-line-endings:
+	gofmt -w .
 
 build: build-linux build-macos build-windows
 

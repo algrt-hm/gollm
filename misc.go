@@ -1,9 +1,51 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
+
+func checkCarriageReturns() bool {
+	// read all the .go files in this directory
+	// check for ^M
+	// if found print the filename
+	// if any are found return true
+	// if not are found return false
+
+	files, err := os.ReadDir(".")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading directory: %v\n", err)
+		return false
+	}
+
+	foundCarriageReturns := false
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		filename := file.Name()
+		if !strings.HasSuffix(filename, ".go") {
+			continue
+		}
+
+		data, err := os.ReadFile(filename)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", filename, err)
+			continue
+		}
+
+		if strings.Contains(string(data), "\r") {
+			fmt.Printf("%s: has carriage returns\n", filename)
+			foundCarriageReturns = true
+		}
+	}
+
+	return foundCarriageReturns
+}
 
 func getReadme() []string {
 	data, err := os.ReadFile("README.md")
@@ -52,4 +94,131 @@ func filletHelp(lines []string) []string {
 	}
 
 	return filteredResult
+}
+
+func handleOpts(argv []string, argc int) (optionsStruct, error) {
+	var opts optionsStruct
+
+	opts.useGemini, opts.usePerplexity, opts.useChatGPT, opts.useCerebras = false, false, false, false
+	opts.logToJsonl = false
+	opts.readLog = false
+
+	// utility function for clarity
+	anyModelsSpecified := func(opt optionsStruct) bool {
+		return opts.useChatGPT || opts.useGemini || opts.usePerplexity || opts.useCerebras
+	}
+
+	// loop through each arg
+	for idx, each := range argv {
+		if strings.Contains(each, "-rl") {
+			opts.readLog = true
+			// negative means print all
+			var logIdx = -1
+			// look ahead and see if the next argument can be an integer
+			// if it can be, that's our idx for ReadLogIdx
+
+			// if there is a next arg
+			if idx+1 < argc {
+				// try to atoi the next arg
+				intArg, err := strconv.Atoi(argv[idx+1])
+				// if successful use it
+				if err == nil {
+					logIdx = intArg
+					// otherwise we need to raise an error
+				} else {
+					Fatalf("Invalid log index: %s, error is %s", argv[idx+1], err.Error())
+				}
+			} else {
+				// impliedly no next arg which suggest -rl but no index provided
+				return opts, fmt.Errorf("-rl requires an index")
+			}
+			opts.readLogIdx = logIdx
+		}
+
+		if strings.Contains(each, "-h") {
+			opts.printUsage = true
+		}
+
+		if strings.Contains(each, "-t") {
+			opts.printAPIKeys = true
+		}
+
+		if strings.Contains(each, "-lg") {
+			opts.listGeminiModels = true
+		}
+
+		if strings.Contains(each, "-lc") {
+			opts.listOpenAIModels = true
+		}
+
+		if strings.Contains(each, "-q") {
+			opts.quietMode = true
+
+			if opts.logToJsonl {
+				opts.logToJsonl = false
+			}
+		}
+
+		if strings.Contains(each, "-l") {
+			if opts.quietMode {
+				fmt.Fprintf(os.Stderr, "Ignoring logging arg as quiet mode activated\n")
+			} else {
+				opts.logToJsonl = true
+			}
+		}
+
+		if strings.Contains(each, "-c") {
+			opts.useChatGPT = true
+		}
+
+		if strings.Contains(each, "-g") {
+			opts.useGemini = true
+		}
+
+		if strings.Contains(each, "-p") {
+			opts.usePerplexity = true
+		}
+
+		if strings.Contains(each, "-f") {
+			opts.useCerebras = true
+		}
+
+		// Cerebras and ChatGPT combo
+		if strings.Contains(each, "-b") {
+			opts.useCerebras = true
+			opts.useChatGPT = true
+		}
+	}
+
+	// If we specify a model and readlog is set we want an error
+	if anyModelsSpecified(opts) && opts.readLog {
+		return opts, fmt.Errorf("-rl provided with a model specifier flag, please provide just one or the other")
+	}
+
+	// Functionality for including the prompt as an argument
+	// If we specify a model OR no models are specified
+	if anyModelsSpecified(opts) || !anyModelsSpecified(opts) {
+		// and we have not set readLog
+		if !opts.readLog {
+			// take the last arg
+			// i.e. argv[argc-1]
+			// and see if there is the flag character "-" in it
+			// if not we assume it is the prompt
+			if !strings.Contains(argv[argc-1], "-") {
+				opts.promptText = argv[argc-1]
+			}
+		}
+	}
+
+	// If none explicitly selected
+	if !anyModelsSpecified(opts) {
+		// and we have not set readLog
+		if !opts.readLog {
+			// then use all models
+			opts.useChatGPT, opts.useGemini, opts.usePerplexity, opts.useCerebras = true, true, true, true
+		}
+	}
+
+	// success
+	return opts, nil
 }

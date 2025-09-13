@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -66,7 +65,7 @@ var logPathToPrint string
 var connected bool
 
 // So we can point this to a noop for testing
-var RenderWithGlamourIndirect = RenderWithGlamour
+var RenderWithGlamourPtr = RenderWithGlamour
 
 // CheckInternetHTTP attempts to make an HTTP GET request to a reliable server.
 // It uses a timeout to avoid hanging indefinitely.
@@ -111,7 +110,7 @@ func Print(s string) (int, error) {
 func Render(s string) {
 	// not quietMode is the default case
 	if !quietMode {
-		RenderWithGlamourIndirect(s)
+		RenderWithGlamourPtr(s)
 	} else {
 		fmt.Println(s)
 	}
@@ -185,7 +184,7 @@ func PrintAPIKeys() {
 }
 
 func RenderWithGlamour(text string) {
-	// Use Glamour for rendering                                                                                                                                
+	// Use Glamour for rendering
 	renderer, err := glamour.NewTermRenderer(glamour.WithAutoStyle(), glamour.WithWordWrap(0))
 
 	if err != nil {
@@ -468,119 +467,6 @@ func core(o optionsStruct) {
 	callModels(o)
 }
 
-func handleOpts(argv []string, argc int) optionsStruct {
-	var opts optionsStruct
-
-	opts.useGemini, opts.usePerplexity, opts.useChatGPT, opts.useCerebras = false, false, false, false
-	opts.logToJsonl = false
-	opts.readLog = false
-
-	// loop through each arg
-	for idx, each := range argv {
-		if strings.Contains(each, "-rl") {
-			opts.readLog = true
-			// negative means print all
-			var logIdx = -1
-			// TODO: should look ahead and see if the next argument can be an integer
-			// if it can be, that's our idx for ReadLogIdx
-
-			// if there is a next arg
-			if idx+1 < argc {
-				// try to atoi the next arg
-				intArg, err := strconv.Atoi(argv[idx+1])
-				// if successful use it
-				if err == nil {
-					logIdx = intArg
-				// otherwise we need to raise an error
-				} else {
-					Fatalf("Invalid log index: %s, error is %s", argv[idx+1], err.Error())
-				}
-			}
-			opts.readLogIdx = logIdx
-		}
-
-		if strings.Contains(each, "-h") {
-			opts.printUsage = true
-		}
-
-		if strings.Contains(each, "-t") {
-			opts.printAPIKeys = true
-		}
-
-		if strings.Contains(each, "-lg") {
-			opts.listGeminiModels = true
-		}
-
-		if strings.Contains(each, "-lc") {
-			opts.listOpenAIModels = true
-		}
-
-		if strings.Contains(each, "-q") {
-			opts.quietMode = true
-
-			if opts.logToJsonl {
-				opts.logToJsonl = false
-			}
-		}
-
-		if strings.Contains(each, "-l") {
-			if opts.quietMode {
-				fmt.Fprintf(os.Stderr, "Ignoring logging arg as quiet mode activated\n")
-			} else {
-				opts.logToJsonl = true
-			}
-		}
-
-		if strings.Contains(each, "-c") {
-			opts.useChatGPT = true
-		}
-
-		if strings.Contains(each, "-g") {
-			opts.useGemini = true
-		}
-
-		if strings.Contains(each, "-p") {
-			opts.usePerplexity = true
-		}
-
-		if strings.Contains(each, "-f") {
-			opts.useCerebras = true
-		}
-
-		// Cerebras and ChatGPT combo
-		if strings.Contains(each, "-b") {
-			opts.useCerebras = true
-			opts.useChatGPT = true
-		}
-	}
-
-	// Functionality for including the prompt as an argument
-	// If we specify a model OR no models are specified
-	if (opts.useChatGPT || opts.useGemini || opts.usePerplexity || opts.useCerebras) || !(opts.useChatGPT || opts.useGemini || opts.usePerplexity || opts.useCerebras) {
-		// and we have not set readLog
-		if !opts.readLog {
-			// take the last arg
-			// i.e. argv[argc-1]
-			// and see if there is the flag character "-" in it
-			// if not we assume it is the prompt
-			if !strings.Contains(argv[argc-1], "-") {
-				opts.promptText = argv[argc-1]
-			}
-		}
-	}
-
-	// If none explicitly selected
-	if !(opts.useChatGPT || opts.useGemini || opts.usePerplexity || opts.useCerebras) {
-		// and we have not set readLog
-		if !opts.readLog {
-			// then use all models
-			opts.useChatGPT, opts.useGemini, opts.usePerplexity, opts.useCerebras = true, true, true, true
-		}
-	}
-
-	return opts
-}
-
 func init() {
 	// Ditto
 	logPath = getLogPath()
@@ -603,7 +489,11 @@ func main() {
 	// handle args
 	argc := len(os.Args)
 	argv := os.Args
-	opts := handleOpts(argv, argc)
+	opts, err := handleOpts(argv, argc)
+
+	if err != nil {
+		Fatalf("Issue reading arguments: %s", err)
+	}
 
 	// various bits of functionality use the quietMode global so we update this here
 	quietMode = opts.quietMode
