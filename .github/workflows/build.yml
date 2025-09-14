@@ -12,6 +12,10 @@ on:
     tags:
       - 'v*'
 
+# Permissions needed for the workflow
+permissions:
+  contents: write  # Required to create releases and upload assets
+
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This job is named "build"
