@@ -65,6 +65,7 @@ jobs:
           # Set the target operating system and architecture from the matrix
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+        shell: bash
         run: |
           # The name of the binary
           BINARY_NAME="gollm"
