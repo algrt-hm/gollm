@@ -73,8 +73,8 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
         shell: bash
         run: |
-          # The name of the binary
-          BINARY_NAME="gollm"
+          # The name of the binary with OS and architecture
+          BINARY_NAME="gollm-${{ matrix.goos }}-${{ matrix.goarch }}"
 
           # Add the .exe extension for Windows builds
           if [ "${{ matrix.goos }}" == "windows" ]; then
@@ -97,7 +97,7 @@ jobs:
           name: gollm-${{ matrix.goos }}-${{ matrix.goarch }}
           # The path to the files you want to upload.
           # We use a glob pattern to find the binary, regardless of its extension.
-          path: gollm*
+          path: gollm-${{ matrix.goos }}-${{ matrix.goarch }}*
 
       # Step 5: Create release and upload binaries (for tag pushes)
       - name: Create Release
@@ -110,6 +110,6 @@ jobs:
           # Auto-generate release notes from commits
           generate_release_notes: true
           # Upload the binary to the release
-          files: gollm*
+          files: gollm-${{ matrix.goos }}-${{ matrix.goarch }}*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
