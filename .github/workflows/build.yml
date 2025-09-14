@@ -9,6 +9,10 @@ on:
   push:
     branches:
       - master
+  # Triggers the workflow on tag pushes for releases
+  push:
+    tags:
+      - 'v*'
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -82,8 +86,9 @@ jobs:
           # ./... : build the main package in the current directory or subdirectories
           go build -v -o "${BINARY_NAME}" -ldflags="-s -w" ./...
 
-      # Step 4: Upload the binary as a build artifact
+      # Step 4: Upload the binary as a build artifact (for regular pushes)
       - name: Upload Artifact
+        if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v4
         with:
           # The name of the artifact to be uploaded. This will be a zip file.
@@ -91,3 +96,18 @@ jobs:
           # The path to the files you want to upload.
           # We use a glob pattern to find the binary, regardless of its extension.
           path: gollm*
+
+      # Step 5: Create release and upload binaries (for tag pushes)
+      - name: Create Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          # Create the release with the tag name
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          # Auto-generate release notes from commits
+          generate_release_notes: true
+          # Upload the binary to the release
+          files: gollm*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
