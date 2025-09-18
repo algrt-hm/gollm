@@ -198,11 +198,23 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 		// and we have not set readLog
 		if !opts.readLog {
 			// take the last arg
-			// i.e. argv[argc-1]
 			// and see if there is the flag character "-" in it
-			// if not we assume it is the prompt
-			if !strings.Contains(argv[argc-1], "-") {
-				opts.promptText = argv[argc-1]
+			// if there is not, we assume a prompt
+			lastArg := argv[argc-1]
+			lastArgContainsDash := strings.Contains(lastArg, "-")
+
+			if !lastArgContainsDash {
+				opts.promptText = lastArg
+			} else {
+				// impliedly there is a dash
+				// the last arg may or may not be a prompt
+				// let's see if the first rune is a dash
+				lastArgAsRunes := []rune(lastArg)
+
+				// if it's not, we can assume it's a prompt
+				if len(lastArgAsRunes) > 0 && lastArgAsRunes[0] != '-' {
+					opts.promptText = lastArg
+				}
 			}
 		}
 	}

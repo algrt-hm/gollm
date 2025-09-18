@@ -230,6 +230,41 @@ func TestHandleOpts(t *testing.T) {
 			t.Errorf("\nExpected error %+v\nGot %+v", expectedErr, err)
 		}
 	})
+
+	t.Run("single_string_arg_with_a_dash_is_a_prompt", func(t *testing.T) {
+		// this should be handled ok and not regard the dash as a flag
+		prompt := "How should I think about objectively researching the best technology start-ups in the UK?"
+		argv := []string{prompt}
+		printArgv(argv)
+
+		expected := optionsStruct{
+			useGemini:     true,
+			usePerplexity: true,
+			useChatGPT:    true,
+			useCerebras:   true,
+			logToJsonl:    false,
+			quietMode:     false,
+
+			readLog:    false,
+			readLogIdx: 0,
+
+			printUsage:       false,
+			printAPIKeys:     false,
+			listGeminiModels: false,
+			listOpenAIModels: false,
+
+			promptText: prompt,
+		}
+
+		ret, err := handleOpts(argv, len(argv))
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if ret != expected {
+			t.Errorf("\nExpected %+v\nGot %+v", expected, ret)
+		}
+
+	})
 }
 
 func TestCheckCarriageReturns(t *testing.T) {
