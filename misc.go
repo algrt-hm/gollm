@@ -96,6 +96,16 @@ func filletHelp(lines []string) []string {
 	return filteredResult
 }
 
+func isFlag(s string, arg string) bool {
+	// note this may only work on ascii input
+
+	// first strip whitespace from s
+	s2 := strings.TrimSpace(s)
+
+	// test it's the same
+	return s2 == arg
+}
+
 func handleOpts(argv []string, argc int) (optionsStruct, error) {
 	var opts optionsStruct
 
@@ -110,7 +120,7 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 
 	// loop through each arg
 	for idx, each := range argv {
-		if strings.Contains(each, "-rl") {
+		if isFlag(each, "-rl") {
 			opts.readLog = true
 			// negative means print all
 			var logIdx = -1
@@ -132,23 +142,23 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 			opts.readLogIdx = logIdx
 		}
 
-		if strings.Contains(each, "-h") {
+		if isFlag(each, "-h") {
 			opts.printUsage = true
 		}
 
-		if strings.Contains(each, "-t") {
+		if isFlag(each, "-t") {
 			opts.printAPIKeys = true
 		}
 
-		if strings.Contains(each, "-lg") {
+		if isFlag(each, "-lg") {
 			opts.listGeminiModels = true
 		}
 
-		if strings.Contains(each, "-lc") {
+		if isFlag(each, "-lc") {
 			opts.listOpenAIModels = true
 		}
 
-		if strings.Contains(each, "-q") {
+		if isFlag(each, "-q") {
 			opts.quietMode = true
 
 			if opts.logToJsonl {
@@ -156,7 +166,7 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 			}
 		}
 
-		if strings.Contains(each, "-l") {
+		if isFlag(each, "-l") {
 			if opts.quietMode {
 				fmt.Fprintf(os.Stderr, "Ignoring logging arg as quiet mode activated\n")
 			} else {
@@ -164,24 +174,24 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 			}
 		}
 
-		if strings.Contains(each, "-c") {
+		if isFlag(each, "-c") {
 			opts.useChatGPT = true
 		}
 
-		if strings.Contains(each, "-g") {
+		if isFlag(each, "-g") {
 			opts.useGemini = true
 		}
 
-		if strings.Contains(each, "-p") {
+		if isFlag(each, "-p") {
 			opts.usePerplexity = true
 		}
 
-		if strings.Contains(each, "-f") {
+		if isFlag(each, "-f") {
 			opts.useCerebras = true
 		}
 
 		// Cerebras and ChatGPT combo
-		if strings.Contains(each, "-b") {
+		if isFlag(each, "-b") {
 			opts.useCerebras = true
 			opts.useChatGPT = true
 		}

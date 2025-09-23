@@ -265,6 +265,43 @@ func TestHandleOpts(t *testing.T) {
 		}
 
 	})
+
+	t.Run("potential_flag_in_prompt_as_last_arg", func(t *testing.T) {
+		// gollm -f 'How to get not-a-time value for Pandas in python'
+		// previously yielded the API keys so this is the test for the fix
+
+		prompt := "How to get not-a-time value for Pandas in python"
+
+		argv := []string{"-f", prompt}
+		printArgv(argv)
+
+		expected := optionsStruct{
+			useGemini:     false,
+			usePerplexity: false,
+			useChatGPT:    false,
+			useCerebras:   true,
+			logToJsonl:    false,
+			quietMode:     false,
+
+			readLog:    false,
+			readLogIdx: 0,
+
+			printUsage:       false,
+			printAPIKeys:     false,
+			listGeminiModels: false,
+			listOpenAIModels: false,
+
+			promptText: prompt,
+		}
+
+		ret, err := handleOpts(argv, len(argv))
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if ret != expected {
+			t.Errorf("\nExpected %+v\nGot %+v", expected, ret)
+		}
+	})
 }
 
 func TestCheckCarriageReturns(t *testing.T) {
