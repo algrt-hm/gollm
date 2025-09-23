@@ -2,7 +2,7 @@
 
 ## What is `gollm`?
 
-gollm is a simple tool that connects your terminal to powerful AI models like Google's Gemini and Perplexity.
+gollm is a simple tool that connects your terminal to powerful AI models like OpenAI's ChatGPT, Google's Gemini and Perplexity
 
 ## Why use `gollm`?
 
@@ -10,16 +10,35 @@ gollm is a simple tool that connects your terminal to powerful AI models like Go
 - Convenience: Interact with AI without leaving your terminal
 - Scripting: Integrate AI capabilities into your shell workflows or scripts
 
+## What does it look like
+
+![Usage screenshot](./doc/Screenshot2025-09-23.png)
+
+(Note that in the above screenshot `gollm` is aliased to `gollm -l`, hence logging is enabled)
+
 ## How to use
 
-Binaries
-- Binaries for Mac, Windows and Linux will build in the `/bin` folder
+### Build locally
+
 - Simply clone the repo and run `make build`; note that for this to work you will need a recent version of the Go programming language installed, see `go.mod` for required version
+- Binaries for Mac, Windows and Linux will build in the `/bin` folder
 - Note that the MacOS binaries are the ones labelled darwin and are available for both Apple Silicon (`gollm-darwin-arm64`) and Intel architectures (`gollm-darwin-amd64`)
+
+### Download from Github
+
+In the top right of the Github repo at <https://github.com/algrt-hm/gollm> you will be able to see `Releases`, like this:
+
+![Releases screenshot](./doc/ScreenshotReleases.png)
+
+which when clicked will take you to a page where you can download the binary. Alternatively you can use this link: <https://github.com/algrt-hm/gollm/releases>
+
+## Functionality
+
+Once you have obtained the binary for your operating system and architecture, you will most likely want to move or copy the binary name to `gollm` in a location specified within your `$PATH` variable.
 
 You run the `gollm` command followed by your question or instruction. For example:
 
-```bash
+```sh
 gollm "Please tell me a little about yourself"
 ```
 
@@ -27,13 +46,13 @@ The prompt will be sent to any LLMs you have API keys set up for and the respons
 
 Or you can send text from another command to gollm:
 
-```bash
+```sh
 cat my_document.txt | gollm "Summarize this text"
 ```
 
 By way of a more advanced example:
 
-```bash
+```sh
 (printf "Please generate a commit message based on this diff\n\n---\n\n"; git status -v) | gollm -q -c
 ```
 
