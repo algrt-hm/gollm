@@ -302,6 +302,42 @@ func TestHandleOpts(t *testing.T) {
 			t.Errorf("\nExpected %+v\nGot %+v", expected, ret)
 		}
 	})
+
+	t.Run("use_gemini", func(t *testing.T) {
+		// gollm -g 'Does MCP work with load-balancers etc?'
+
+		prompt := "Does MCP work with load-balancers etc?"
+
+		argv := []string{"-g", prompt}
+		printArgv(argv)
+
+		expected := optionsStruct{
+			useGemini:     true,
+			usePerplexity: false,
+			useChatGPT:    false,
+			useCerebras:   false,
+			logToJsonl:    false,
+			quietMode:     false,
+
+			readLog:    false,
+			readLogIdx: 0,
+
+			printUsage:       false,
+			printAPIKeys:     false,
+			listGeminiModels: false,
+			listOpenAIModels: false,
+
+			promptText: prompt,
+		}
+
+		ret, err := handleOpts(argv, len(argv))
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if ret != expected {
+			t.Errorf("\nExpected %+v\nGot %+v", expected, ret)
+		}
+	})
 }
 
 func TestCheckCarriageReturns(t *testing.T) {
