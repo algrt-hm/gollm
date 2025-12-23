@@ -69,6 +69,7 @@ options:
 -h	show (this) help
 -lg	list Gemini models
 -lc	list OpenAI models
+-la	list Anthropic models
 -t	test API keys (note: they will be displayed)
 -l	enable logging of model interactions to ~/gollm_logs.jsonl
 -q	quiet mode: turns off logging and all non-essential output
@@ -79,6 +80,7 @@ model:
 -g	use Gemini
 -f	use Cerebras
 -p	use Perplexity
+-s	use Claude (Sonnet)
 
 API keys should be set using the environment variables below:
 
@@ -94,11 +96,15 @@ export GEMINI_API_KEY="your Gemini API key here"
 # For Cerebras
 export CEREBRAS_API_KEY="your Cerebras API key here"
 
+# For Claude
+export ANTHROPIC_API_KEY="your Anthropic API key here"
+
 Setup:
 - You already have PERPLEXITY_API_KEY set
 - You already have OPENAI_API_KEY set
 - You already have GEMINI_API_KEY set
 - You already have CEREBRAS_API_KEY set
+- You already have ANTHROPIC_API_KEY set
 - You are connected to the internet
 - We're ready to rumble :)
 
@@ -107,6 +113,7 @@ Default models:
 - ChatGPT: gpt-5
 - Gemini: models/gemini-2.5-pro
 - Cerebras: gpt-oss-120b
+- Claude: claude-sonnet-4-5-20250929
 ```
 
 ## Logging

@@ -22,9 +22,11 @@ var DefaultModels = struct {
 	Gemini     string
 	ChatGPT    shared.ChatModel
 	Cerebras   string
+	Claude     string
 }{
 	Perplexity: "sonar-pro",
 	Gemini:     "models/gemini-2.5-pro",
 	ChatGPT:    openai.ChatModelGPT5,
 	Cerebras:   cerebrasGptOss,
+	Claude:     "claude-sonnet-4-5-20250929",
 }

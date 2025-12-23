@@ -29,16 +29,18 @@ type optionsStruct struct {
 	usePerplexity bool
 	useChatGPT    bool
 	useCerebras   bool
+	useClaude     bool
 	logToJsonl    bool
 	quietMode     bool
 
 	readLog    bool
 	readLogIdx int
 
-	printUsage       bool
-	printAPIKeys     bool
-	listGeminiModels bool
-	listOpenAIModels bool
+	printUsage         bool
+	printAPIKeys       bool
+	listGeminiModels   bool
+	listOpenAIModels   bool
+	listAnthropicModels bool
 
 	// Our promptText text will go in here
 	promptText string
@@ -49,6 +51,7 @@ const perplexityApiKey = "PERPLEXITY_API_KEY"
 const geminiApiKey = "GEMINI_API_KEY"
 const chatGPTApiKey = "OPENAI_API_KEY"
 const cerebrasApiKey = "CEREBRAS_API_KEY"
+const claudeApiKey = "ANTHROPIC_API_KEY"
 
 // Suppress output for tests
 // ... can be nice in development to turn this off for the full output in tests
@@ -146,6 +149,10 @@ func getCerebrasAPIKey() string {
 	return os.Getenv(cerebrasApiKey)
 }
 
+func getClaudeAPIKey() string {
+	return os.Getenv(claudeApiKey)
+}
+
 func GetPerplexityAPIKeyOrBail() string {
 	ret := getPerplexityAPIKey()
 	if ret == "" {
@@ -178,9 +185,17 @@ func GetCerebrasAPIKeyOrBail() string {
 	return ret
 }
 
+func GetClaudeAPIKeyOrBail() string {
+	ret := getClaudeAPIKey()
+	if ret == "" {
+		Fatalf("%s is not set", claudeApiKey)
+	}
+	return ret
+}
+
 func PrintAPIKeys() {
-	fmtStr := "\nPerplexity API key is: %+v\nChatGPT API key is: %+v\nGemini API key is: %+v\n"
-	fmt.Printf(fmtStr, getPerplexityAPIKey(), getChatGPTAPIKey(), getGeminiAPIKey())
+	fmtStr := "\nPerplexity API key is: %+v\nChatGPT API key is: %+v\nGemini API key is: %+v\nClaude API key is: %+v\n"
+	fmt.Printf(fmtStr, getPerplexityAPIKey(), getChatGPTAPIKey(), getGeminiAPIKey(), getClaudeAPIKey())
 }
 
 func RenderWithGlamour(text string) {
@@ -206,13 +221,15 @@ func fmtDefaultModels() string {
 - Perplexity: %s
 - ChatGPT: %s
 - Gemini: %s
-- Cerebras: %s`
+- Cerebras: %s
+- Claude: %s`
 
 	return fmt.Sprintf(s,
 		DefaultModels.Perplexity,
 		DefaultModels.ChatGPT,
 		DefaultModels.Gemini,
 		DefaultModels.Cerebras,
+		DefaultModels.Claude,
 	) + "\n"
 }
 
@@ -225,6 +242,7 @@ options:
 -h	show (this) help
 -lg	list Gemini models
 -lc	list OpenAI models
+-la	list Anthropic models
 -t	test API keys (note: they will be displayed)
 -l	enable logging of model interactions to %s
 -q	quiet mode: turns off logging and all non-essential output
@@ -235,6 +253,7 @@ model:
 -g	use Gemini
 -f	use Cerebras
 -p	use Perplexity
+-s	use Claude (Sonnet)
 
 API keys should be set using the environment variables below:
 
@@ -249,6 +268,9 @@ export %s="your Gemini API key here"
 
 # For Cerebras
 export %s="your Cerebras API key here"
+
+# For Claude
+export %s="your Anthropic API key here"
 `
 	apiKeyExtendo := "- You already have %s set\n"
 
@@ -256,9 +278,10 @@ export %s="your Cerebras API key here"
 	havePerplexityAPIKey := getPerplexityAPIKey() != ""
 	haveChatGPTAPIKey := getChatGPTAPIKey() != ""
 	haveCerebrasAPIKey := getCerebrasAPIKey() != ""
+	haveClaudeAPIKey := getClaudeAPIKey() != ""
 
 	// If we have any of the keys
-	if haveGeminiAPIKey || havePerplexityAPIKey || haveChatGPTAPIKey || haveCerebrasAPIKey {
+	if haveGeminiAPIKey || havePerplexityAPIKey || haveChatGPTAPIKey || haveCerebrasAPIKey || haveClaudeAPIKey {
 		usageFmt += "\nSetup:\n"
 
 		if havePerplexityAPIKey {
@@ -277,6 +300,10 @@ export %s="your Cerebras API key here"
 			usageFmt += fmt.Sprintf(apiKeyExtendo, cerebrasApiKey)
 		}
 
+		if haveClaudeAPIKey {
+			usageFmt += fmt.Sprintf(apiKeyExtendo, claudeApiKey)
+		}
+
 	}
 	// TODO: should we do something if impliedly we have none?
 
@@ -284,13 +311,14 @@ export %s="your Cerebras API key here"
 		usageFmt += "- You are connected to the internet\n"
 	}
 
-	if haveChatGPTAPIKey && haveGeminiAPIKey && havePerplexityAPIKey && haveCerebrasAPIKey && connectedToInternet {
+	if haveChatGPTAPIKey && haveGeminiAPIKey && havePerplexityAPIKey && haveCerebrasAPIKey && haveClaudeAPIKey && connectedToInternet {
 		usageFmt += "- We're ready to rumble :)\n"
 	}
 
 	usageFmt += "\n"
-	// usage := fmt.Sprintf(usageFmt, os.Args[0], logPathToPrint, perplexityApiKey, chatGPTApiKey, geminiApiKey, cerebrasApiKey)
-	usage := fmt.Sprintf(usageFmt, "gollm", logPathToPrint, perplexityApiKey, chatGPTApiKey, geminiApiKey, cerebrasApiKey)
+
+	// os.Args[0] may be a nonsensical if testing
+	usage := fmt.Sprintf(usageFmt, "gollm", logPathToPrint, perplexityApiKey, chatGPTApiKey, geminiApiKey, cerebrasApiKey, claudeApiKey)
 	return usage + fmtDefaultModels()
 }
 
@@ -346,7 +374,11 @@ func callModels(o optionsStruct) {
 		modelsNameSlice = append(modelsNameSlice, "ChatGPT")
 	}
 
-	if o.useCerebras || o.usePerplexity || o.useGemini || o.useChatGPT {
+	if o.useClaude {
+		modelsNameSlice = append(modelsNameSlice, "Claude")
+	}
+
+	if o.useCerebras || o.usePerplexity || o.useGemini || o.useChatGPT || o.useClaude {
 		sort.Strings(modelsNameSlice)
 		outS := strings.Join(modelsNameSlice, ", ")
 		Print("Using " + outS)
@@ -372,6 +404,10 @@ func callModels(o optionsStruct) {
 
 	if o.useCerebras && getCerebrasAPIKey() == "" {
 		Fatalf("Please set environment variable %s to use Cerebras", cerebrasApiKey)
+	}
+
+	if o.useClaude && getClaudeAPIKey() == "" {
+		Fatalf("Please set environment variable %s to use Claude", claudeApiKey)
 	}
 
 	// --- Run API calls concurrently ---
@@ -410,6 +446,15 @@ func callModels(o optionsStruct) {
 			defer wg.Done()
 			Print("Hitting Cerebras API ...")
 			Render(CerebrasWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+		}()
+	}
+
+	if o.useClaude {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			Print("Hitting Claude API ...")
+			Render(ClaudeWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
 		}()
 	}
 
@@ -456,7 +501,14 @@ func core(o optionsStruct) {
 		os.Exit(0)
 	}
 
-	// TODO: need to strip this
+	// ListAnthropicModels
+	if o.listAnthropicModels {
+		fmt.Println(ListAnthropicModels())
+		os.Exit(0)
+	}
+
+	// strip of any whitespace before getting length
+	o.promptText = strings.TrimSpace(o.promptText)
 	n := len([]rune(o.promptText))
 
 	// Ask for input if we don't have any from stdin
@@ -468,7 +520,6 @@ func core(o optionsStruct) {
 }
 
 func init() {
-	// Ditto
 	logPath = getLogPath()
 
 	// For tidiness we replace $HOME with ~ in logPath
