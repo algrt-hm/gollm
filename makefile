@@ -8,6 +8,7 @@ dev: build
 update:
 	go get -u github.com/openai/openai-go
 	go get -u github.com/google/generative-ai-go/genai
+	go get -u "github.com/anthropics/anthropic-sdk-go"
 
 code:
 	code .

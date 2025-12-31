@@ -109,13 +109,13 @@ func isFlag(s string, arg string) bool {
 func handleOpts(argv []string, argc int) (optionsStruct, error) {
 	var opts optionsStruct
 
-	opts.useGemini, opts.usePerplexity, opts.useChatGPT, opts.useCerebras = false, false, false, false
+	opts.useGemini, opts.usePerplexity, opts.useChatGPT, opts.useCerebras, opts.useClaude = false, false, false, false, false
 	opts.logToJsonl = false
 	opts.readLog = false
 
 	// utility function for clarity
 	anyModelsSpecified := func(opt optionsStruct) bool {
-		return opts.useChatGPT || opts.useGemini || opts.usePerplexity || opts.useCerebras
+		return opts.useChatGPT || opts.useGemini || opts.usePerplexity || opts.useCerebras || opts.useClaude
 	}
 
 	// loop through each arg
@@ -158,6 +158,10 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 			opts.listOpenAIModels = true
 		}
 
+		if isFlag(each, "-la") {
+			opts.listAnthropicModels = true
+		}
+
 		if isFlag(each, "-q") {
 			opts.quietMode = true
 
@@ -190,9 +194,13 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 			opts.useCerebras = true
 		}
 
-		// Cerebras and ChatGPT combo
+		if isFlag(each, "-s") {
+			opts.useClaude = true
+		}
+
+		// Claude and ChatGPT combo
 		if isFlag(each, "-b") {
-			opts.useCerebras = true
+			opts.useClaude = true
 			opts.useChatGPT = true
 		}
 	}
@@ -234,7 +242,7 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 		// and we have not set readLog
 		if !opts.readLog {
 			// then use all models
-			opts.useChatGPT, opts.useGemini, opts.usePerplexity, opts.useCerebras = true, true, true, true
+			opts.useChatGPT, opts.useGemini, opts.usePerplexity, opts.useCerebras, opts.useClaude = true, true, true, true, true
 		}
 	}
 
