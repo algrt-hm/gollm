@@ -241,7 +241,7 @@ func PrintUsage(connectedToInternet bool, logPath string) string {
 
 options:
 -h	show (this) help
--i	interactive chat mode (requires single model, defaults to Claude)
+-i	interactive chat mode (requires single model, auto-selects first available)
 -lg	list Gemini models
 -lc	list OpenAI models
 -la	list Anthropic models

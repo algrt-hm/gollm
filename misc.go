@@ -239,8 +239,20 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 			modelCount++
 		}
 		if modelCount == 0 {
-			// Default to Claude for interactive mode
-			opts.useClaude = true
+			// Default to first preferred provider with an API key
+			preferred := GetPreferredProvider()
+			switch preferred {
+			case ProviderCerebras:
+				opts.useCerebras = true
+			case ProviderClaude:
+				opts.useClaude = true
+			case ProviderChatGPT:
+				opts.useChatGPT = true
+			case ProviderGemini:
+				opts.useGemini = true
+			case ProviderPerplexity:
+				opts.usePerplexity = true
+			}
 		} else if modelCount > 1 {
 			return opts, fmt.Errorf("interactive mode (-i) requires exactly one model, got %d", modelCount)
 		}

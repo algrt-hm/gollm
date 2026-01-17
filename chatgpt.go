@@ -137,7 +137,7 @@ func ChatGPTMiddleWrapper(promptText string, mock bool) string {
 }
 
 // chatGPTChat handles interactive chat with conversation history
-func chatGPTChat(history []ChatMessage, userInput string) (string, error) {
+func chatGPTChat(history []ChatMessage, userInput string, model string) (string, error) {
 	client := openai.NewClient(option.WithAPIKey(GetChatGPTAPIKeyOrBail()))
 
 	// Build messages array from history
@@ -154,7 +154,7 @@ func chatGPTChat(history []ChatMessage, userInput string) (string, error) {
 
 	chatCompletion, err := client.Chat.Completions.New(context.TODO(), openai.ChatCompletionNewParams{
 		Messages: messages,
-		Model:    DefaultModels.ChatGPT,
+		Model:    model,
 	})
 
 	if err != nil {

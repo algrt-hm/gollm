@@ -223,7 +223,7 @@ func CallPerplexityAPI(promptText string, mock bool) (string, time.Duration) {
 }
 
 // perplexityChat handles interactive chat with conversation history
-func perplexityChat(history []ChatMessage, userInput string) (string, error) {
+func perplexityChat(history []ChatMessage, userInput string, model string) (string, error) {
 	key := os.Getenv("PERPLEXITY_API_KEY")
 	if key == "" {
 		return "", fmt.Errorf("PERPLEXITY_API_KEY not set")
@@ -239,7 +239,7 @@ func perplexityChat(history []ChatMessage, userInput string) (string, error) {
 	messages = append(messages, Message{Role: "user", Content: userInput})
 
 	requestPayload := PerplexityRequest{
-		Model:                  DefaultModels.Perplexity,
+		Model:                  model,
 		Messages:               messages,
 		MaxTokens:              4000,
 		Temperature:            0.2,

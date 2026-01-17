@@ -135,7 +135,7 @@ func ClaudeMiddleWrapper(promptText string, mock bool) string {
 }
 
 // claudeChat handles interactive chat with conversation history
-func claudeChat(history []ChatMessage, userInput string) (string, error) {
+func claudeChat(history []ChatMessage, userInput string, model string) (string, error) {
 	client := anthropic.NewClient(option.WithAPIKey(GetClaudeAPIKeyOrBail()))
 
 	// Build messages array from history
@@ -152,7 +152,7 @@ func claudeChat(history []ChatMessage, userInput string) (string, error) {
 
 	// Use streaming API
 	stream := client.Messages.NewStreaming(context.TODO(), anthropic.MessageNewParams{
-		Model:     anthropic.Model(DefaultModels.Claude),
+		Model:     anthropic.Model(model),
 		MaxTokens: 8192,
 		Messages:  messages,
 	})

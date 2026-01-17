@@ -266,7 +266,7 @@ func GeminiMiddleWrapper(promptText string, mock bool, logToJsonl bool, quietMod
 }
 
 // geminiChat handles interactive chat with conversation history
-func geminiChat(history []ChatMessage, userInput string) (string, error) {
+func geminiChat(history []ChatMessage, userInput string, modelName string) (string, error) {
 	apiKey := GetGeminiAPIKeyOrBail()
 	ctx := context.Background()
 
@@ -276,7 +276,7 @@ func geminiChat(history []ChatMessage, userInput string) (string, error) {
 	}
 	defer client.Close()
 
-	model := client.GenerativeModel(DefaultModels.Gemini)
+	model := client.GenerativeModel(modelName)
 
 	// Start a chat session with history
 	chat := model.StartChat()
@@ -299,7 +299,7 @@ func geminiChat(history []ChatMessage, userInput string) (string, error) {
 		return "", fmt.Errorf("failed to send message: %w", err)
 	}
 
-	response, _, _ := StringifyGeminiResponse(resp, DefaultModels.Gemini)
+	response, _, _ := StringifyGeminiResponse(resp, modelName)
 	return response, nil
 }
 

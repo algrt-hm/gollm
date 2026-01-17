@@ -84,7 +84,7 @@ func CerebrasMiddleWrapper(promptText string, mock bool) string {
 }
 
 // cerebrasChat handles interactive chat with conversation history
-func cerebrasChat(history []ChatMessage, userInput string) (string, error) {
+func cerebrasChat(history []ChatMessage, userInput string, model string) (string, error) {
 	client := openai.NewClient(option.WithAPIKey(GetCerebrasAPIKeyOrBail()), option.WithBaseURL("https://api.cerebras.ai/v1"))
 
 	// Build messages array from history
@@ -101,7 +101,7 @@ func cerebrasChat(history []ChatMessage, userInput string) (string, error) {
 
 	chatCompletion, err := client.Chat.Completions.New(context.TODO(), openai.ChatCompletionNewParams{
 		Messages: messages,
-		Model:    DefaultModels.Cerebras,
+		Model:    model,
 	})
 
 	if err != nil {

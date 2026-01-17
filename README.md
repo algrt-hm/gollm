@@ -67,7 +67,7 @@ gollm [options] [model]
 
 options:
 -h	show (this) help
--i	interactive chat mode (requires single model, defaults to Claude)
+-i	interactive chat mode (requires single model, auto-selects first available)
 -lg	list Gemini models
 -lc	list OpenAI models
 -la	list Anthropic models
@@ -113,7 +113,7 @@ Default models:
 - Perplexity: sonar-pro
 - ChatGPT: gpt-5.2
 - Gemini: models/gemini-3-pro-preview
-- Cerebras: zai-glm-4.7
+- Cerebras: gpt-oss-120b
 - Claude: claude-sonnet-4-5-20250929
 ```
 
@@ -121,7 +121,7 @@ Default models:
 
 Use the `-i` flag for multi-turn conversations with a single model:
 
-- `gollm -i` - Interactive chat with Claude (default)
+- `gollm -i` - Interactive chat (auto-selects provider: Cerebras > Claude > ChatGPT > Gemini > Perplexity)
 - `gollm -i -c` - Interactive chat with ChatGPT
 - `gollm -i -g` - Interactive chat with Gemini
 - `gollm -i -f` - Interactive chat with Cerebras
