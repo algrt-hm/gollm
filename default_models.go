@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/shared"
 )
 
@@ -14,7 +13,7 @@ import (
 // https://inference-docs.cerebras.ai/models/overview
 // 64k tokens context length on free tier so seems like a sensible default choice
 
-const cerebrasGptOss = "gpt-oss-120b"
+const cerebrasModel = "zai-glm-4.7"
 
 // Where we store default model info
 var DefaultModels = struct {
@@ -25,8 +24,8 @@ var DefaultModels = struct {
 	Claude     string
 }{
 	Perplexity: "sonar-pro",
-	Gemini:     "models/gemini-2.5-pro",
-	ChatGPT:    openai.ChatModelGPT5,
-	Cerebras:   cerebrasGptOss,
+	Gemini:     "models/gemini-3-pro-preview",
+	ChatGPT:    "gpt-5.2",
+	Cerebras:   cerebrasModel,
 	Claude:     "claude-sonnet-4-5-20250929",
 }

@@ -204,8 +204,7 @@ func GeminiCallAPI(modelName string, promptText string, ctx context.Context, cli
 func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Client, mock bool, logToJsonl bool, quietMode bool) string {
 	// Start the timer
 	startTime := time.Now()
-	// Latest and best Gemini model as at June 2025
-	modelName := "models/gemini-2.5-pro-preview-06-05"
+	modelName := DefaultModels.Gemini
 
 	resp, err := GeminiCallAPI(modelName, promptText, ctx, client, mock)
 
@@ -264,6 +263,44 @@ func GeminiMiddleWrapper(promptText string, mock bool, logToJsonl bool, quietMod
 	output := GeminiLowerWrapper(promptText, ctx, client, mock, logToJsonl, quietMode)
 
 	return output
+}
+
+// geminiChat handles interactive chat with conversation history
+func geminiChat(history []ChatMessage, userInput string) (string, error) {
+	apiKey := GetGeminiAPIKeyOrBail()
+	ctx := context.Background()
+
+	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	if err != nil {
+		return "", fmt.Errorf("failed to create client: %w", err)
+	}
+	defer client.Close()
+
+	model := client.GenerativeModel(DefaultModels.Gemini)
+
+	// Start a chat session with history
+	chat := model.StartChat()
+
+	// Add history to chat
+	for _, msg := range history {
+		role := "user"
+		if msg.Role == "assistant" {
+			role = "model"
+		}
+		chat.History = append(chat.History, &genai.Content{
+			Parts: []genai.Part{genai.Text(msg.Content)},
+			Role:  role,
+		})
+	}
+
+	// Send the new message
+	resp, err := chat.SendMessage(ctx, genai.Text(userInput))
+	if err != nil {
+		return "", fmt.Errorf("failed to send message: %w", err)
+	}
+
+	response, _, _ := StringifyGeminiResponse(resp, DefaultModels.Gemini)
+	return response, nil
 }
 
 func GeminiWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {

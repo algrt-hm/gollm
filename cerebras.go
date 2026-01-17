@@ -83,6 +83,38 @@ func CerebrasMiddleWrapper(promptText string, mock bool) string {
 	return fmt.Sprintf("\n%s\n\n%s", status, c.Choices[0].Message.Content)
 }
 
+// cerebrasChat handles interactive chat with conversation history
+func cerebrasChat(history []ChatMessage, userInput string) (string, error) {
+	client := openai.NewClient(option.WithAPIKey(GetCerebrasAPIKeyOrBail()), option.WithBaseURL("https://api.cerebras.ai/v1"))
+
+	// Build messages array from history
+	var messages []openai.ChatCompletionMessageParamUnion
+	for _, msg := range history {
+		if msg.Role == "user" {
+			messages = append(messages, openai.UserMessage(msg.Content))
+		} else {
+			messages = append(messages, openai.AssistantMessage(msg.Content))
+		}
+	}
+	// Add current user message
+	messages = append(messages, openai.UserMessage(userInput))
+
+	chatCompletion, err := client.Chat.Completions.New(context.TODO(), openai.ChatCompletionNewParams{
+		Messages: messages,
+		Model:    DefaultModels.Cerebras,
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("API error: %w", err)
+	}
+
+	if len(chatCompletion.Choices) == 0 {
+		return "", fmt.Errorf("no response from model")
+	}
+
+	return chatCompletion.Choices[0].Message.Content, nil
+}
+
 // CerebrasWrapper is the top-level function for Cerebras
 func CerebrasWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {
 	fromTime := time.Now()

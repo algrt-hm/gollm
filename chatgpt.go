@@ -88,7 +88,7 @@ func ChatGPTLowerWrapper(promptText string, mock bool) *openai.ChatCompletion {
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(promptText),
 		},
-		Model: openai.ChatModelGPT4o,
+		Model: DefaultModels.ChatGPT,
 	})
 
 	if err != nil {
@@ -134,6 +134,38 @@ func ChatGPTMiddleWrapper(promptText string, mock bool) string {
 	status := fmt.Sprintf(fmtStr, c.Model, c.Usage.TotalTokens, finishReason, duration.Seconds())
 
 	return fmt.Sprintf("\n%s\n\n%s", status, contentBuilder.String())
+}
+
+// chatGPTChat handles interactive chat with conversation history
+func chatGPTChat(history []ChatMessage, userInput string) (string, error) {
+	client := openai.NewClient(option.WithAPIKey(GetChatGPTAPIKeyOrBail()))
+
+	// Build messages array from history
+	var messages []openai.ChatCompletionMessageParamUnion
+	for _, msg := range history {
+		if msg.Role == "user" {
+			messages = append(messages, openai.UserMessage(msg.Content))
+		} else {
+			messages = append(messages, openai.AssistantMessage(msg.Content))
+		}
+	}
+	// Add current user message
+	messages = append(messages, openai.UserMessage(userInput))
+
+	chatCompletion, err := client.Chat.Completions.New(context.TODO(), openai.ChatCompletionNewParams{
+		Messages: messages,
+		Model:    DefaultModels.ChatGPT,
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("API error: %w", err)
+	}
+
+	if len(chatCompletion.Choices) == 0 {
+		return "", fmt.Errorf("no response from model")
+	}
+
+	return chatCompletion.Choices[0].Message.Content, nil
 }
 
 func ChatGPTWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {

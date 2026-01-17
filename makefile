@@ -26,6 +26,7 @@ fmt-fix-line-endings:
 	gofmt -w .
 
 build: build-linux build-macos build-windows
+	rm -f ./gollm
 
 build-linux:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./bin/$(PROJECT)-linux-amd64 *.go

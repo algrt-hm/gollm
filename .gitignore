@@ -1,5 +1,6 @@
 .gitignore
 CLAUDE.md
+HUMANS.md
 ./bin/*
 gollm
 gollm.test

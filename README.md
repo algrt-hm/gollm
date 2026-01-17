@@ -2,7 +2,7 @@
 
 ## What is `gollm`?
 
-gollm is a simple tool that connects your terminal to powerful AI models like OpenAI's ChatGPT, Google's Gemini and Perplexity
+gollm is a simple tool that connects your terminal to powerful AI models like OpenAI's ChatGPT, Google's Gemini, Anthropic's Claude, Perplexity, and Cerebras
 
 ## Why use `gollm`?
 
@@ -67,6 +67,7 @@ gollm [options] [model]
 
 options:
 -h	show (this) help
+-i	interactive chat mode (requires single model, defaults to Claude)
 -lg	list Gemini models
 -lc	list OpenAI models
 -la	list Anthropic models
@@ -110,11 +111,25 @@ Setup:
 
 Default models:
 - Perplexity: sonar-pro
-- ChatGPT: gpt-5
-- Gemini: models/gemini-2.5-pro
-- Cerebras: gpt-oss-120b
+- ChatGPT: gpt-5.2
+- Gemini: models/gemini-3-pro-preview
+- Cerebras: zai-glm-4.7
 - Claude: claude-sonnet-4-5-20250929
 ```
+
+## Interactive Mode
+
+Use the `-i` flag for multi-turn conversations with a single model:
+
+- `gollm -i` - Interactive chat with Claude (default)
+- `gollm -i -c` - Interactive chat with ChatGPT
+- `gollm -i -g` - Interactive chat with Gemini
+- `gollm -i -f` - Interactive chat with Cerebras
+- `gollm -i -p` - Interactive chat with Perplexity
+
+In interactive mode, type your message and press Enter. The model remembers the conversation history. Type `exit` or `quit` to end the session, or press Ctrl+C to exit immediately.
+
+Note: Interactive mode requires a single model and disables logging.
 
 ## Logging
 

@@ -83,6 +83,7 @@ func TestHandleOpts(t *testing.T) {
 			usePerplexity: true,
 			useChatGPT:    true,
 			useCerebras:   true,
+			useClaude:     true,
 			logToJsonl:    false,
 			quietMode:     false,
 
@@ -242,6 +243,7 @@ func TestHandleOpts(t *testing.T) {
 			usePerplexity: true,
 			useChatGPT:    true,
 			useCerebras:   true,
+			useClaude:     true,
 			logToJsonl:    false,
 			quietMode:     false,
 

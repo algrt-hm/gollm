@@ -173,6 +173,8 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 		if isFlag(each, "-l") {
 			if opts.quietMode {
 				fmt.Fprintf(os.Stderr, "Ignoring logging arg as quiet mode activated\n")
+			} else if opts.interactive {
+				fmt.Fprintf(os.Stderr, "Ignoring logging arg as interactive mode activated\n")
 			} else {
 				opts.logToJsonl = true
 			}
@@ -203,11 +205,45 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 			opts.useClaude = true
 			opts.useChatGPT = true
 		}
+
+		if isFlag(each, "-i") {
+			opts.interactive = true
+			// Interactive mode is incompatible with logging
+			if opts.logToJsonl {
+				opts.logToJsonl = false
+			}
+		}
 	}
 
 	// If we specify a model and readlog is set we want an error
 	if anyModelsSpecified(opts) && opts.readLog {
 		return opts, fmt.Errorf("-rl provided with a model specifier flag, please provide just one or the other")
+	}
+
+	// Interactive mode requires exactly one model
+	if opts.interactive {
+		modelCount := 0
+		if opts.useChatGPT {
+			modelCount++
+		}
+		if opts.useGemini {
+			modelCount++
+		}
+		if opts.usePerplexity {
+			modelCount++
+		}
+		if opts.useCerebras {
+			modelCount++
+		}
+		if opts.useClaude {
+			modelCount++
+		}
+		if modelCount == 0 {
+			// Default to Claude for interactive mode
+			opts.useClaude = true
+		} else if modelCount > 1 {
+			return opts, fmt.Errorf("interactive mode (-i) requires exactly one model, got %d", modelCount)
+		}
 	}
 
 	// Functionality for including the prompt as an argument
@@ -239,8 +275,8 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 
 	// If none explicitly selected
 	if !anyModelsSpecified(opts) {
-		// and we have not set readLog
-		if !opts.readLog {
+		// and we have not set readLog or interactive mode
+		if !opts.readLog && !opts.interactive {
 			// then use all models
 			opts.useChatGPT, opts.useGemini, opts.usePerplexity, opts.useCerebras, opts.useClaude = true, true, true, true, true
 		}

@@ -11,6 +11,15 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
+// ClaudeResponse holds the accumulated response from streaming
+type ClaudeResponse struct {
+	Content      string
+	Model        string
+	StopReason   string
+	InputTokens  int64
+	OutputTokens int64
+}
+
 // ListAnthropicModels will list Anthropic models which are available
 func ListAnthropicModels() string {
 	var builder strings.Builder
@@ -45,96 +54,149 @@ func ListAnthropicModels() string {
 	return builder.String()
 }
 
-func ClaudeGenChatCompletionMock() *anthropic.Message {
-	// Create a mock message manually
-	mock := &anthropic.Message{
-		ID:         "msg-mock-123",
-		Model:      anthropic.Model(DefaultModels.Claude),
-		StopReason: anthropic.StopReasonEndTurn,
-		Usage: anthropic.Usage{
-			InputTokens:  10,
-			OutputTokens: 5,
-		},
+func ClaudeGenChatCompletionMock() *ClaudeResponse {
+	return &ClaudeResponse{
+		Content:      "This is a mocked Claude response.",
+		Model:        DefaultModels.Claude,
+		StopReason:   "end_turn",
+		InputTokens:  10,
+		OutputTokens: 5,
 	}
-	// Note: We can't easily set Content here due to union types
-	// This is sufficient for basic mocking
-	return mock
 }
 
-func ClaudeLowerWrapper(promptText string, mock bool) *anthropic.Message {
+func ClaudeLowerWrapper(promptText string, mock bool) *ClaudeResponse {
 	if mock {
 		return ClaudeGenChatCompletionMock()
 	}
 
 	client := anthropic.NewClient(option.WithAPIKey(GetClaudeAPIKeyOrBail()))
-	message, err := client.Messages.New(context.TODO(), anthropic.MessageNewParams{
-		Model: anthropic.Model(DefaultModels.Claude),
-		// Different models have different maximum values for this parameter. See
-		// [models](https://docs.anthropic.com/en/docs/models-overview) for details.
-		//
-		// as at 25 October 2025 it's 64k for Sonnet 4.5
+
+	// Use streaming API
+	stream := client.Messages.NewStreaming(context.TODO(), anthropic.MessageNewParams{
+		Model:     anthropic.Model(DefaultModels.Claude),
 		MaxTokens: 64000,
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(anthropic.NewTextBlock(promptText)),
 		},
 	})
+	defer stream.Close()
 
-	if err != nil {
-		Fatalf("Some error %s", err)
+	response := &ClaudeResponse{
+		Model: DefaultModels.Claude,
+	}
+	var contentBuilder strings.Builder
+
+	// Process streaming events
+	for stream.Next() {
+		event := stream.Current()
+
+		switch event.Type {
+		case "message_start":
+			// Initial message with model info
+			msg := event.AsMessageStart()
+			response.Model = string(msg.Message.Model)
+			response.InputTokens = msg.Message.Usage.InputTokens
+
+		case "content_block_delta":
+			// Text content delta
+			delta := event.AsContentBlockDelta()
+			if delta.Delta.Type == "text_delta" {
+				contentBuilder.WriteString(delta.Delta.Text)
+			}
+
+		case "message_delta":
+			// Final message info with stop reason and output tokens
+			msgDelta := event.AsMessageDelta()
+			response.StopReason = string(msgDelta.Delta.StopReason)
+			response.OutputTokens = msgDelta.Usage.OutputTokens
+		}
 	}
 
-	return message
+	if err := stream.Err(); err != nil {
+		Fatalf("Streaming error: %s", err)
+	}
+
+	response.Content = contentBuilder.String()
+	return response
 }
 
 func ClaudeMiddleWrapper(promptText string, mock bool) string {
 	fromTime := time.Now()
 
-	m := ClaudeLowerWrapper(promptText, mock)
+	r := ClaudeLowerWrapper(promptText, mock)
 
 	duration := time.Since(fromTime)
 
-	// Extract text content from the message
-	var content string
-	for _, block := range m.Content {
-		if block.Type == "text" {
-			content = block.Text
+	totalTokens := r.InputTokens + r.OutputTokens
+	fmtStr := "Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds"
+	status := fmt.Sprintf(fmtStr, r.Model, totalTokens, r.StopReason, duration.Seconds())
+
+	return fmt.Sprintf("\n%s\n\n%s", status, r.Content)
+}
+
+// claudeChat handles interactive chat with conversation history
+func claudeChat(history []ChatMessage, userInput string) (string, error) {
+	client := anthropic.NewClient(option.WithAPIKey(GetClaudeAPIKeyOrBail()))
+
+	// Build messages array from history
+	var messages []anthropic.MessageParam
+	for _, msg := range history {
+		if msg.Role == "user" {
+			messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock(msg.Content)))
+		} else {
+			messages = append(messages, anthropic.NewAssistantMessage(anthropic.NewTextBlock(msg.Content)))
+		}
+	}
+	// Add current user message
+	messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock(userInput)))
+
+	// Use streaming API
+	stream := client.Messages.NewStreaming(context.TODO(), anthropic.MessageNewParams{
+		Model:     anthropic.Model(DefaultModels.Claude),
+		MaxTokens: 8192,
+		Messages:  messages,
+	})
+	defer stream.Close()
+
+	var contentBuilder strings.Builder
+
+	// Process streaming events
+	for stream.Next() {
+		event := stream.Current()
+		if event.Type == "content_block_delta" {
+			delta := event.AsContentBlockDelta()
+			if delta.Delta.Type == "text_delta" {
+				contentBuilder.WriteString(delta.Delta.Text)
+			}
 		}
 	}
 
-	totalTokens := m.Usage.InputTokens + m.Usage.OutputTokens
-	fmtStr := "Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds"
-	status := fmt.Sprintf(fmtStr, m.Model, totalTokens, m.StopReason, duration.Seconds())
+	if err := stream.Err(); err != nil {
+		return "", fmt.Errorf("streaming error: %w", err)
+	}
 
-	return fmt.Sprintf("\n%s\n\n%s", status, content)
+	return contentBuilder.String(), nil
 }
 
 // ClaudeWrapper is the top-level function for Claude
 func ClaudeWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {
 	fromTime := time.Now()
 
-	m := ClaudeLowerWrapper(promptText, mock)
+	r := ClaudeLowerWrapper(promptText, mock)
 
 	duration := time.Since(fromTime)
 
-	// Extract text content from the message
-	var content string
-	for _, block := range m.Content {
-		if block.Type == "text" {
-			content = block.Text
-		}
-	}
-
-	totalTokens := m.Usage.InputTokens + m.Usage.OutputTokens
+	totalTokens := r.InputTokens + r.OutputTokens
 
 	// Log successful model call only if logging is enabled
 	if logToJsonl {
 		logEntry := LogEntry{
-			ModelName:     string(m.Model),
+			ModelName:     r.Model,
 			TotalTokens:   int(totalTokens),
 			Duration:      duration.Seconds(),
-			StopReason:    string(m.StopReason),
+			StopReason:    r.StopReason,
 			PromptText:    promptText,
-			ModelResponse: content,
+			ModelResponse: r.Content,
 			Timestamp:     time.Now(),
 		}
 		if err := WriteLogEntry(logEntry); err != nil {
@@ -144,11 +206,11 @@ func ClaudeWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool
 	}
 
 	if quietMode {
-		return content
+		return r.Content
 	}
 
 	fmtStr := "Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds"
-	status := fmt.Sprintf(fmtStr, m.Model, totalTokens, m.StopReason, duration.Seconds())
+	status := fmt.Sprintf(fmtStr, r.Model, totalTokens, r.StopReason, duration.Seconds())
 
-	return fmt.Sprintf("# Claude\n\n%s\n\n%s\n\n", status, content)
+	return fmt.Sprintf("# Claude\n\n%s\n\n%s\n\n", status, r.Content)
 }

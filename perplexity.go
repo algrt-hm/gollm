@@ -222,6 +222,82 @@ func CallPerplexityAPI(promptText string, mock bool) (string, time.Duration) {
 	return string(body), time.Since(startTime)
 }
 
+// perplexityChat handles interactive chat with conversation history
+func perplexityChat(history []ChatMessage, userInput string) (string, error) {
+	key := os.Getenv("PERPLEXITY_API_KEY")
+	if key == "" {
+		return "", fmt.Errorf("PERPLEXITY_API_KEY not set")
+	}
+	url := "https://api.perplexity.ai/chat/completions"
+
+	// Build messages array from history
+	var messages []Message
+	messages = append(messages, Message{Role: "system", Content: "Be precise and concise."})
+	for _, msg := range history {
+		messages = append(messages, Message{Role: msg.Role, Content: msg.Content})
+	}
+	messages = append(messages, Message{Role: "user", Content: userInput})
+
+	requestPayload := PerplexityRequest{
+		Model:                  DefaultModels.Perplexity,
+		Messages:               messages,
+		MaxTokens:              4000,
+		Temperature:            0.2,
+		TopP:                   0.9,
+		SearchDomainFilter:     []string{},
+		ReturnImages:           false,
+		ReturnRelatedQuestions: false,
+		SearchRecencyFilter:    "month",
+		TopK:                   0,
+		Stream:                 false,
+		PresencePenalty:        0,
+		FrequencyPenalty:       1,
+		WebSearchOptions: WebSearchOptions{
+			SearchContextSize: "high",
+		},
+	}
+
+	payloadBytes, err := json.Marshal(requestPayload)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewReader(payloadBytes))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", key))
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("request failed: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != 200 {
+		body, _ := io.ReadAll(res.Body)
+		return "", fmt.Errorf("API error (status %d): %s", res.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	var response PerplexityResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return "", fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	if len(response.Choices) == 0 {
+		return "", fmt.Errorf("no response from model")
+	}
+
+	return response.Choices[0].Message.Content, nil
+}
+
 func PerplexityWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {
 	var response PerplexityResponse
 

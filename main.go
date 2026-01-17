@@ -32,14 +32,15 @@ type optionsStruct struct {
 	useClaude     bool
 	logToJsonl    bool
 	quietMode     bool
+	interactive   bool
 
 	readLog    bool
 	readLogIdx int
 
-	printUsage         bool
-	printAPIKeys       bool
-	listGeminiModels   bool
-	listOpenAIModels   bool
+	printUsage          bool
+	printAPIKeys        bool
+	listGeminiModels    bool
+	listOpenAIModels    bool
 	listAnthropicModels bool
 
 	// Our promptText text will go in here
@@ -240,6 +241,7 @@ func PrintUsage(connectedToInternet bool, logPath string) string {
 
 options:
 -h	show (this) help
+-i	interactive chat mode (requires single model, defaults to Claude)
 -lg	list Gemini models
 -lc	list OpenAI models
 -la	list Anthropic models
@@ -471,6 +473,12 @@ func callModels(o optionsStruct) {
 func core(o optionsStruct) {
 	// Run any of the single option bits
 
+	// Interactive mode
+	if o.interactive {
+		InteractiveSession(o)
+		os.Exit(0)
+	}
+
 	// ReadLogIdx
 	if o.readLog {
 		ReadLogIdx(o.readLogIdx)
@@ -549,8 +557,10 @@ func main() {
 	// various bits of functionality use the quietMode global so we update this here
 	quietMode = opts.quietMode
 
-	// get whatever is being piped in
-	opts.promptText += readPipe()
+	// get whatever is being piped in (but not in interactive mode)
+	if !opts.interactive {
+		opts.promptText += readPipe()
+	}
 
 	// main bit of functionality
 	core(opts)
