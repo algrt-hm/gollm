@@ -128,6 +128,20 @@ Use the `-i` flag for multi-turn conversations with a single model:
 - `gollm -i -s` - Interactive chat with Claude
 - `gollm -i -p` - Interactive chat with Perplexity
 
+### Multiline Input
+
+Interactive mode supports multiline input:
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Add a new line (continue typing), or submit if input is a command |
+| `Ctrl+D` | Send message to model |
+| `Ctrl+C` | Cancel current input |
+
+Note: Commands (`exit`, `quit`, `/help`, etc.) submit immediately on Enter.
+
+**Troubleshooting:** If your terminal appears corrupted after exiting (garbled text, no echo), run `reset` or `stty sane` to restore it.
+
 ### Interactive Commands
 
 Once in interactive mode, you can use these commands:

@@ -4,11 +4,15 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
+
+	"golang.org/x/term"
 )
 
 // ChatMessage represents a single message in the conversation
@@ -79,6 +83,157 @@ func (s *Spinner) Stop() {
 
 	close(s.stop)
 	<-s.stopped
+}
+
+// MultilineReader handles multiline input with Enter for newlines and Ctrl+D to submit
+type MultilineReader struct {
+	fd int
+}
+
+// NewMultilineReader creates a new multiline reader
+func NewMultilineReader() *MultilineReader {
+	return &MultilineReader{
+		fd: int(os.Stdin.Fd()),
+	}
+}
+
+// ReadMultiline reads multiline input from the terminal
+// Enter adds a newline, Ctrl+D submits
+// Returns the complete input string and any error
+func (r *MultilineReader) ReadMultiline() (string, error) {
+	// Check if stdin is a terminal
+	if !term.IsTerminal(r.fd) {
+		return r.readLineFallback()
+	}
+
+	// Put terminal in raw mode to capture individual keystrokes
+	oldState, err := term.MakeRaw(r.fd)
+	if err != nil {
+		// Fallback to simple line reading if raw mode fails
+		fmt.Fprintf(os.Stderr, "[raw mode failed: %v]\n", err)
+		return r.readLineFallback()
+	}
+
+	// Set up signal handler to restore terminal on interrupt
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	// Ensure terminal is restored on exit
+	restore := func() {
+		term.Restore(r.fd, oldState)
+	}
+	defer restore()
+
+	// Handle signals in background
+	go func() {
+		<-sigCh
+		restore()
+		os.Exit(0)
+	}()
+
+	var buf strings.Builder
+	b := make([]byte, 1)
+
+	for {
+		_, err := os.Stdin.Read(b)
+		if err != nil {
+			return buf.String(), err
+		}
+
+		char := b[0]
+
+		// Handle escape sequences - just skip them (arrow keys, etc.)
+		if char == 0x1b { // ESC
+			// Read and discard escape sequence
+			// Most sequences are 2-3 bytes: ESC [ X
+			seq := make([]byte, 8)
+			os.Stdin.Read(seq) // This may block briefly but escape sequences come fast
+			continue
+		}
+
+		// Ctrl+D (EOT) - submit input
+		if char == 0x04 {
+			fmt.Print("\r\n")
+			return buf.String(), nil
+		}
+
+		// Ctrl+C - abort current input
+		if char == 0x03 {
+			fmt.Print("^C\r\n")
+			return "", nil
+		}
+
+		// Enter (CR or LF) - check for commands or add newline
+		if char == '\r' || char == '\n' {
+			// Check if buffer is a command that should submit immediately
+			trimmed := strings.TrimSpace(buf.String())
+			if isImmediateCommand(trimmed) {
+				fmt.Print("\r\n")
+				return buf.String(), nil
+			}
+			// Otherwise add newline and continue
+			buf.WriteByte('\n')
+			fmt.Print("\r\n  ") // New line with continuation indent
+			continue
+		}
+
+		// Backspace handling
+		if char == 0x7f || char == 0x08 {
+			str := buf.String()
+			if len(str) > 0 {
+				if str[len(str)-1] == '\n' {
+					// Deleting a newline - move cursor up
+					buf.Reset()
+					buf.WriteString(str[:len(str)-1])
+					fmt.Print("\r\033[K") // Clear current line
+					lines := strings.Split(buf.String(), "\n")
+					if len(lines) > 0 {
+						lastLine := lines[len(lines)-1]
+						fmt.Print("\033[A\r") // Move up
+						if len(lines) == 1 {
+							fmt.Print("> " + lastLine)
+						} else {
+							fmt.Print("  " + lastLine)
+						}
+					}
+				} else {
+					buf.Reset()
+					buf.WriteString(str[:len(str)-1])
+					fmt.Print("\b \b") // Erase character
+				}
+			}
+			continue
+		}
+
+		// Regular character - add to buffer and echo
+		buf.WriteByte(char)
+		fmt.Print(string(char))
+	}
+}
+
+// readLineFallback uses simple line reading when raw mode is unavailable
+func (r *MultilineReader) readLineFallback() (string, error) {
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	return strings.TrimSuffix(input, "\n"), err
+}
+
+// isImmediateCommand checks if the input is a command that should submit on Enter
+func isImmediateCommand(input string) bool {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return false
+	}
+	// Exit commands
+	if input == "exit" || input == "quit" {
+		return true
+	}
+	// Slash commands
+	if strings.HasPrefix(input, "/") {
+		return true
+	}
+	return false
 }
 
 // CommandAction represents the result of processing a command
@@ -410,7 +565,12 @@ func InteractiveSession(o optionsStruct) {
 	}
 
 	// Help text for commands (reused in welcome and /help)
-	helpText := `**Commands:**
+	helpText := `**Input:**
+- ` + "`Enter`" + ` - add a new line (multiline input)
+- ` + "`Ctrl+D`" + ` - send message to model
+- ` + "`Ctrl+C`" + ` - cancel current input
+
+**Commands:**
 - ` + "`/help`" + ` - show this help message
 - ` + "`exit`" + ` or ` + "`quit`" + ` - end the session
 - ` + "`/amnesia`" + ` - toggle amnesia mode (disables chat history)
@@ -425,7 +585,7 @@ func InteractiveSession(o optionsStruct) {
 	RenderWithGlamourPtr(welcomeHeader)
 
 	var history []ChatMessage
-	reader := bufio.NewReader(os.Stdin)
+	mlReader := NewMultilineReader()
 	amnesiaMode := false
 	// Track if we just rendered something with glamour (which adds its own trailing newline)
 	justRendered := true
@@ -438,7 +598,7 @@ func InteractiveSession(o optionsStruct) {
 		}
 		justRendered = false
 
-		input, err := reader.ReadString('\n')
+		input, err := mlReader.ReadMultiline()
 		if err != nil {
 			RenderWithGlamourPtr("\n*Goodbye!*")
 			return
@@ -566,7 +726,9 @@ func InteractiveSession(o optionsStruct) {
 			}
 
 			fmt.Print("Enter filename (will be saved to $HOME if no path given): ")
-			filename, err := reader.ReadString('\n')
+			// Use simple line reader for filename (single line input)
+			lineReader := bufio.NewReader(os.Stdin)
+			filename, err := lineReader.ReadString('\n')
 			if err != nil {
 				RenderWithGlamourPtr("*Error reading filename.*")
 				justRendered = true
