@@ -125,11 +125,25 @@ Use the `-i` flag for multi-turn conversations with a single model:
 - `gollm -i -c` - Interactive chat with ChatGPT
 - `gollm -i -g` - Interactive chat with Gemini
 - `gollm -i -f` - Interactive chat with Cerebras
+- `gollm -i -s` - Interactive chat with Claude
 - `gollm -i -p` - Interactive chat with Perplexity
 
-In interactive mode, type your message and press Enter. The model remembers the conversation history. Type `exit` or `quit` to end the session, or press Ctrl+C to exit immediately.
+### Interactive Commands
 
-Note: Interactive mode requires a single model and disables logging.
+Once in interactive mode, you can use these commands:
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show available commands |
+| `exit` or `quit` | End the session |
+| `/amnesia` | Toggle amnesia mode (when enabled, chat history is not sent to the model) |
+| `/model` | List available models for current provider |
+| `/model <number>` | Switch to a different model (e.g., `/model 2`) |
+| `/provider` | List available providers (shows which have API keys configured) |
+| `/provider <number>` | Switch to a different provider (e.g., `/provider 3`) |
+| `/save` | Save conversation to a markdown file (prompts for filename) |
+
+Note: Interactive mode requires a single model and disables logging. A spinner is shown while waiting for model responses.
 
 ## Logging
 

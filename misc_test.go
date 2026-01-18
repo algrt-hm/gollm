@@ -350,3 +350,76 @@ func TestCheckCarriageReturns(t *testing.T) {
 		t.Errorf("Expected checkCarriageReturns to return false, got true")
 	}
 }
+
+func TestInteractiveModeFlags(t *testing.T) {
+	t.Run("logging_then_interactive_ignores_logging", func(t *testing.T) {
+		// gollm -l -i should enter interactive mode with logging disabled
+		argv := []string{"-l", "-i"}
+
+		ret, err := handleOpts(argv, len(argv))
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+
+		if !ret.interactive {
+			t.Errorf("Expected interactive to be true")
+		}
+		if ret.logToJsonl {
+			t.Errorf("Expected logToJsonl to be false in interactive mode")
+		}
+	})
+
+	t.Run("interactive_then_logging_ignores_logging", func(t *testing.T) {
+		// gollm -i -l should also enter interactive mode with logging disabled
+		argv := []string{"-i", "-l"}
+
+		ret, err := handleOpts(argv, len(argv))
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+
+		if !ret.interactive {
+			t.Errorf("Expected interactive to be true")
+		}
+		if ret.logToJsonl {
+			t.Errorf("Expected logToJsonl to be false in interactive mode")
+		}
+	})
+
+	t.Run("interactive_with_single_model_flag", func(t *testing.T) {
+		// gollm -i -s should use Claude in interactive mode
+		argv := []string{"-i", "-s"}
+
+		ret, err := handleOpts(argv, len(argv))
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+
+		if !ret.interactive {
+			t.Errorf("Expected interactive to be true")
+		}
+		if !ret.useClaude {
+			t.Errorf("Expected useClaude to be true")
+		}
+	})
+
+	t.Run("interactive_with_multiple_models_should_error", func(t *testing.T) {
+		// gollm -i -s -c should error (multiple models)
+		argv := []string{"-i", "-s", "-c"}
+
+		_, err := handleOpts(argv, len(argv))
+		if err == nil {
+			t.Errorf("Expected error for multiple models in interactive mode")
+		}
+	})
+
+	t.Run("interactive_with_combo_flag_should_error", func(t *testing.T) {
+		// gollm -i -b should error (-b sets both Claude and ChatGPT)
+		argv := []string{"-i", "-b"}
+
+		_, err := handleOpts(argv, len(argv))
+		if err == nil {
+			t.Errorf("Expected error for -b combo flag in interactive mode")
+		}
+	})
+}

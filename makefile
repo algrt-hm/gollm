@@ -1,9 +1,25 @@
 .POSIX:
 
 PROJECT = gollm
+BINARY = $(PROJECT)
+SOURCES = $(wildcard *.go)
 
-dev: build
-	gollm -h
+# Default target: build if needed, then run
+run: $(BINARY)
+	$(BINARY) -i
+
+# Build only if sources are newer than binary
+$(BINARY): $(SOURCES)
+	go build -o $(BINARY) .
+
+help:
+	@echo "make        - Build (if needed) and run gollm"
+	@echo "make build  - Build gollm"
+	@echo "make test   - Run tests"
+	@echo "make fmt    - Format code"
+	@echo "make update - Update dependencies"
+
+build: $(BINARY)
 
 update:
 	go get -u github.com/openai/openai-go
@@ -25,8 +41,7 @@ fmt:
 fmt-fix-line-endings:
 	gofmt -w .
 
-build: build-linux build-macos build-windows
-	rm -f ./gollm
+build-all-platforms: build-linux build-macos build-windows
 
 build-linux:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./bin/$(PROJECT)-linux-amd64 *.go
