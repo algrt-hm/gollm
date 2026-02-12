@@ -220,6 +220,17 @@ func TestHandleCommand(t *testing.T) {
 		}
 	})
 
+	t.Run("provider_switch_proxy_mode_skips_key_check", func(t *testing.T) {
+		state := newState()
+		state.ProxyMode = true
+		// Pick a provider index that likely has no local API key set in test env;
+		// with ProxyMode the switch should succeed regardless.
+		result := handleCommand("/provider 1", state)
+		if result.Action != ActionSwitchProvider {
+			t.Errorf("expected ActionSwitchProvider in proxy mode, got %v (message: %s)", result.Action, result.Message)
+		}
+	})
+
 	t.Run("save_with_no_history", func(t *testing.T) {
 		state := newState()
 		result := handleCommand("/save", state)

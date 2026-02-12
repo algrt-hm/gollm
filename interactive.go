@@ -268,6 +268,7 @@ type SessionState struct {
 	CurrentModel string
 	History      []ChatMessage
 	AmnesiaMode  bool
+	ProxyMode    bool
 }
 
 // handleCommand processes user input and returns what action to take
@@ -348,7 +349,7 @@ func handleCommand(input string, state *SessionState) CommandResult {
 				}
 			}
 			newProvider := AllProviders[num-1]
-			if !hasAPIKey(newProvider) {
+			if !state.ProxyMode && !hasAPIKey(newProvider) {
 				return CommandResult{
 					Action:  ActionError,
 					Message: fmt.Sprintf("*Cannot switch to %s:* API key not set.\n\nSet the environment variable for this provider and restart.", newProvider),
@@ -476,7 +477,11 @@ func getDefaultModel(provider Provider) string {
 }
 
 // callChat calls the appropriate chat function for the provider
-func callChat(provider Provider, history []ChatMessage, userInput string, model string) (string, error) {
+// When proxyMode is true, all calls route through the LLM Proxy
+func callChat(provider Provider, history []ChatMessage, userInput string, model string, proxyMode bool) (string, error) {
+	if proxyMode {
+		return llmproxyChat(history, userInput, proxyModelName(provider, model))
+	}
 	switch provider {
 	case ProviderClaude:
 		return claudeChat(history, userInput, model)
@@ -543,6 +548,8 @@ func InteractiveSession(o optionsStruct) {
 	var provider Provider
 	var currentModel string
 
+	proxyMode := o.useLLMProxy
+
 	// Determine which provider to use
 	switch {
 	case o.useClaude:
@@ -581,7 +588,11 @@ func InteractiveSession(o optionsStruct) {
 - ` + "`/save`" + ` - save conversation to markdown file`
 
 	// Render welcome header with markdown
-	welcomeHeader := fmt.Sprintf("# Interactive Chat\n\n**Provider:** %s\n**Model:** `%s`\n\n%s\n\n---", provider, currentModel, helpText)
+	providerLabel := string(provider)
+	if proxyMode {
+		providerLabel += " (via proxy)"
+	}
+	welcomeHeader := fmt.Sprintf("# Interactive Chat\n\n**Provider:** %s\n**Model:** `%s`\n\n%s\n\n---", providerLabel, currentModel, helpText)
 	RenderWithGlamourPtr(welcomeHeader)
 
 	var history []ChatMessage
@@ -681,7 +692,7 @@ func InteractiveSession(o optionsStruct) {
 						marker = "→ "
 					}
 					keyStatus := ""
-					if !hasAPIKey(p) {
+					if !proxyMode && !hasAPIKey(p) {
 						keyStatus = " *(no API key)*"
 					}
 					sb.WriteString(fmt.Sprintf("%s%d. %s%s\n", marker, i+1, p, keyStatus))
@@ -703,8 +714,8 @@ func InteractiveSession(o optionsStruct) {
 					continue
 				}
 				newProvider := AllProviders[num-1]
-				// Check if the user has an API key for this provider
-				if !hasAPIKey(newProvider) {
+				// Check if the user has an API key for this provider (skip in proxy mode)
+				if !proxyMode && !hasAPIKey(newProvider) {
 					RenderWithGlamourPtr(fmt.Sprintf("*Cannot switch to %s:* API key not set.\n\nSet the environment variable for this provider and restart.", newProvider))
 					justRendered = true
 					continue
@@ -776,7 +787,7 @@ func InteractiveSession(o optionsStruct) {
 		// Start spinner while waiting for response
 		spinner := NewSpinner()
 		spinner.Start()
-		response, err := callChat(provider, historyToSend, input, currentModel)
+		response, err := callChat(provider, historyToSend, input, currentModel, proxyMode)
 		spinner.Stop()
 
 		if err != nil {

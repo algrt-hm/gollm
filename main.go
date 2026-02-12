@@ -30,6 +30,7 @@ type optionsStruct struct {
 	useChatGPT    bool
 	useCerebras   bool
 	useClaude     bool
+	useLLMProxy   bool
 	logToJsonl    bool
 	quietMode     bool
 	interactive   bool
@@ -242,6 +243,7 @@ func PrintUsage(connectedToInternet bool, logPath string) string {
 options:
 -h	show (this) help
 -i	interactive chat mode (requires single model, auto-selects first available)
+-x	route calls through LLM Proxy (default: http://localhost:8000/v1)
 -lg	list Gemini models
 -lc	list OpenAI models
 -la	list Anthropic models
@@ -383,7 +385,11 @@ func callModels(o optionsStruct) {
 	if o.useCerebras || o.usePerplexity || o.useGemini || o.useChatGPT || o.useClaude {
 		sort.Strings(modelsNameSlice)
 		outS := strings.Join(modelsNameSlice, ", ")
-		Print("Using " + outS)
+		if o.useLLMProxy {
+			Print("Using " + outS + " (via proxy)")
+		} else {
+			Print("Using " + outS)
+		}
 	}
 
 	// Let the user know if we're logging
@@ -391,25 +397,27 @@ func callModels(o optionsStruct) {
 		Print("Logging to " + logPathToPrint)
 	}
 
-	// Check we have API keys as required
-	if o.useChatGPT && getChatGPTAPIKey() == "" {
-		Fatalf("Please set environment variable %s to use ChatGPT", chatGPTApiKey)
-	}
+	// Check we have API keys as required (skip when using proxy — proxy handles auth)
+	if !o.useLLMProxy {
+		if o.useChatGPT && getChatGPTAPIKey() == "" {
+			Fatalf("Please set environment variable %s to use ChatGPT", chatGPTApiKey)
+		}
 
-	if o.useGemini && getGeminiAPIKey() == "" {
-		Fatalf("Please set environment variable %s to use Gemini", geminiApiKey)
-	}
+		if o.useGemini && getGeminiAPIKey() == "" {
+			Fatalf("Please set environment variable %s to use Gemini", geminiApiKey)
+		}
 
-	if o.usePerplexity && getPerplexityAPIKey() == "" {
-		Fatalf("Please set environment variable %s to use Perplexity", perplexityApiKey)
-	}
+		if o.usePerplexity && getPerplexityAPIKey() == "" {
+			Fatalf("Please set environment variable %s to use Perplexity", perplexityApiKey)
+		}
 
-	if o.useCerebras && getCerebrasAPIKey() == "" {
-		Fatalf("Please set environment variable %s to use Cerebras", cerebrasApiKey)
-	}
+		if o.useCerebras && getCerebrasAPIKey() == "" {
+			Fatalf("Please set environment variable %s to use Cerebras", cerebrasApiKey)
+		}
 
-	if o.useClaude && getClaudeAPIKey() == "" {
-		Fatalf("Please set environment variable %s to use Claude", claudeApiKey)
+		if o.useClaude && getClaudeAPIKey() == "" {
+			Fatalf("Please set environment variable %s to use Claude", claudeApiKey)
+		}
 	}
 
 	// --- Run API calls concurrently ---
@@ -419,8 +427,13 @@ func callModels(o optionsStruct) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			Print("Hitting Perplexity API ...")
-			Render(PerplexityWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+			if o.useLLMProxy {
+				Print("Hitting Perplexity API (via proxy) ...")
+				Render(LLMProxyWrapperForProvider("Perplexity", o.promptText, proxyModelName(ProviderPerplexity, DefaultModels.Perplexity), false, o.logToJsonl, o.quietMode))
+			} else {
+				Print("Hitting Perplexity API ...")
+				Render(PerplexityWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+			}
 		}()
 	}
 
@@ -428,8 +441,13 @@ func callModels(o optionsStruct) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			Print("Hitting ChatGPT API ...")
-			Render(ChatGPTWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+			if o.useLLMProxy {
+				Print("Hitting ChatGPT API (via proxy) ...")
+				Render(LLMProxyWrapperForProvider("ChatGPT", o.promptText, proxyModelName(ProviderChatGPT, string(DefaultModels.ChatGPT)), false, o.logToJsonl, o.quietMode))
+			} else {
+				Print("Hitting ChatGPT API ...")
+				Render(ChatGPTWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+			}
 		}()
 	}
 
@@ -437,8 +455,13 @@ func callModels(o optionsStruct) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			Print("Hitting Gemini API ...")
-			Render(GeminiWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+			if o.useLLMProxy {
+				Print("Hitting Gemini API (via proxy) ...")
+				Render(LLMProxyWrapperForProvider("Gemini", o.promptText, proxyModelName(ProviderGemini, DefaultModels.Gemini), false, o.logToJsonl, o.quietMode))
+			} else {
+				Print("Hitting Gemini API ...")
+				Render(GeminiWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+			}
 		}()
 	}
 
@@ -446,8 +469,13 @@ func callModels(o optionsStruct) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			Print("Hitting Cerebras API ...")
-			Render(CerebrasWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+			if o.useLLMProxy {
+				Print("Hitting Cerebras API (via proxy) ...")
+				Render(LLMProxyWrapperForProvider("Cerebras", o.promptText, proxyModelName(ProviderCerebras, DefaultModels.Cerebras), false, o.logToJsonl, o.quietMode))
+			} else {
+				Print("Hitting Cerebras API ...")
+				Render(CerebrasWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+			}
 		}()
 	}
 
@@ -455,8 +483,13 @@ func callModels(o optionsStruct) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			Print("Hitting Claude API ...")
-			Render(ClaudeWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+			if o.useLLMProxy {
+				Print("Hitting Claude API (via proxy) ...")
+				Render(LLMProxyWrapperForProvider("Claude", o.promptText, proxyModelName(ProviderClaude, DefaultModels.Claude), false, o.logToJsonl, o.quietMode))
+			} else {
+				Print("Hitting Claude API ...")
+				Render(ClaudeWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+			}
 		}()
 	}
 

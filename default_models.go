@@ -32,10 +32,10 @@ var DefaultModels = struct {
 
 // AvailableModels lists models available for each provider in interactive mode
 var AvailableModels = struct {
-	Claude    []string
-	ChatGPT   []string
-	Gemini    []string
-	Cerebras  []string
+	Claude     []string
+	ChatGPT    []string
+	Gemini     []string
+	Cerebras   []string
 	Perplexity []string
 }{
 	Claude: []string{
