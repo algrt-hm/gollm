@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -66,14 +68,14 @@ func TestGetLLMProxyURL(t *testing.T) {
 }
 
 func TestLLMProxyFlagParsing(t *testing.T) {
-	t.Run("x_flag_sets_useLLMProxy", func(t *testing.T) {
+	t.Run("x_flag_sets_bypassLLMProxy", func(t *testing.T) {
 		argv := []string{"-x", "hello"}
 		ret, err := handleOpts(argv, len(argv))
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
 		}
-		if !ret.useLLMProxy {
-			t.Error("Expected useLLMProxy to be true")
+		if !ret.bypassLLMProxy {
+			t.Error("Expected bypassLLMProxy to be true")
 		}
 		if ret.promptText != "hello" {
 			t.Errorf("Expected prompt 'hello', got %q", ret.promptText)
@@ -81,14 +83,14 @@ func TestLLMProxyFlagParsing(t *testing.T) {
 	})
 
 	t.Run("x_flag_not_in_default_all_models", func(t *testing.T) {
-		// When no model flags are specified, all 5 default models are used but NOT LLM Proxy
+		// When no model flags are specified, all 5 default models are used and bypassLLMProxy is false
 		argv := []string{"hello"}
 		ret, err := handleOpts(argv, len(argv))
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
 		}
-		if ret.useLLMProxy {
-			t.Error("Expected useLLMProxy to be false when no flags specified")
+		if ret.bypassLLMProxy {
+			t.Error("Expected bypassLLMProxy to be false when no flags specified")
 		}
 		if !ret.useChatGPT || !ret.useGemini || !ret.usePerplexity || !ret.useCerebras || !ret.useClaude {
 			t.Error("Expected all 5 default models to be true")
@@ -96,7 +98,7 @@ func TestLLMProxyFlagParsing(t *testing.T) {
 	})
 
 	t.Run("x_flag_interactive_mode_auto_selects_provider", func(t *testing.T) {
-		// -i -x should auto-select a provider (proxy mode, not a provider itself)
+		// -i -x should auto-select a provider (-x is a bypass flag, not a provider itself)
 		argv := []string{"-i", "-x"}
 		ret, err := handleOpts(argv, len(argv))
 		if err != nil {
@@ -105,8 +107,8 @@ func TestLLMProxyFlagParsing(t *testing.T) {
 		if !ret.interactive {
 			t.Error("Expected interactive to be true")
 		}
-		if !ret.useLLMProxy {
-			t.Error("Expected useLLMProxy to be true")
+		if !ret.bypassLLMProxy {
+			t.Error("Expected bypassLLMProxy to be true")
 		}
 		// Should auto-select a provider since -x is not a model flag
 		hasProvider := ret.useChatGPT || ret.useGemini || ret.usePerplexity || ret.useCerebras || ret.useClaude
@@ -116,7 +118,7 @@ func TestLLMProxyFlagParsing(t *testing.T) {
 	})
 
 	t.Run("x_with_model_interactive_is_valid", func(t *testing.T) {
-		// -i -x -c should work: ChatGPT via proxy
+		// -i -x -c should work: ChatGPT with proxy bypassed
 		argv := []string{"-i", "-x", "-c"}
 		ret, err := handleOpts(argv, len(argv))
 		if err != nil {
@@ -125,26 +127,83 @@ func TestLLMProxyFlagParsing(t *testing.T) {
 		if !ret.interactive {
 			t.Error("Expected interactive to be true")
 		}
-		if !ret.useLLMProxy {
-			t.Error("Expected useLLMProxy to be true")
+		if !ret.bypassLLMProxy {
+			t.Error("Expected bypassLLMProxy to be true")
 		}
 		if !ret.useChatGPT {
 			t.Error("Expected useChatGPT to be true")
 		}
 	})
 
-	t.Run("x_flag_is_routing_not_model", func(t *testing.T) {
-		// -x alone should use all 5 default models (routed through proxy)
+	t.Run("x_flag_is_bypass_not_model", func(t *testing.T) {
+		// -x alone should use all 5 default models (with proxy bypassed)
 		argv := []string{"-x", "hello"}
 		ret, err := handleOpts(argv, len(argv))
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
 		}
-		if !ret.useLLMProxy {
-			t.Error("Expected useLLMProxy to be true")
+		if !ret.bypassLLMProxy {
+			t.Error("Expected bypassLLMProxy to be true")
 		}
 		if !ret.useChatGPT || !ret.useGemini || !ret.usePerplexity || !ret.useCerebras || !ret.useClaude {
 			t.Error("Expected all 5 default models to be true when -x is the only flag")
+		}
+	})
+}
+
+func TestCheckLLMProxyHealth(t *testing.T) {
+	t.Run("returns_false_when_env_unset", func(t *testing.T) {
+		original := os.Getenv(llmProxyURLEnvVar)
+		os.Unsetenv(llmProxyURLEnvVar)
+		t.Cleanup(func() {
+			if original != "" {
+				os.Setenv(llmProxyURLEnvVar, original)
+			}
+		})
+
+		if CheckLLMProxyHealth() {
+			t.Error("Expected false when env var is unset")
+		}
+	})
+
+	t.Run("returns_true_when_proxy_healthy", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/health" {
+				w.WriteHeader(http.StatusOK)
+			} else {
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+		defer server.Close()
+
+		original := os.Getenv(llmProxyURLEnvVar)
+		os.Setenv(llmProxyURLEnvVar, server.URL+"/v1")
+		t.Cleanup(func() {
+			if original != "" {
+				os.Setenv(llmProxyURLEnvVar, original)
+			} else {
+				os.Unsetenv(llmProxyURLEnvVar)
+			}
+		})
+
+		if !CheckLLMProxyHealth() {
+			t.Error("Expected true when proxy returns 200 on /health")
+		}
+	})
+
+	t.Run("returns_false_when_proxy_unreachable", func(t *testing.T) {
+		original := os.Getenv(llmProxyURLEnvVar)
+		os.Setenv(llmProxyURLEnvVar, "http://127.0.0.1:1/v1")
+		t.Cleanup(func() {
+			if original != "" {
+				os.Setenv(llmProxyURLEnvVar, original)
+			} else {
+				os.Unsetenv(llmProxyURLEnvVar)
+			}
+		})
+
+		if CheckLLMProxyHealth() {
+			t.Error("Expected false when proxy is unreachable")
 		}
 	})
 }

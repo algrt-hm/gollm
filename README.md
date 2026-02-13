@@ -68,7 +68,7 @@ gollm [options] [model]
 options:
 -h	show (this) help
 -i	interactive chat mode (requires single model, auto-selects first available)
--x	route calls through LLM Proxy (default: http://localhost:8000/v1)
+-x	bypass LLM Proxy (proxy is used automatically when LLM_PROXY_URL is set)
 -lg	list Gemini models
 -lc	list OpenAI models
 -la	list Anthropic models
@@ -101,11 +101,15 @@ export CEREBRAS_API_KEY="your Cerebras API key here"
 # For Claude
 export ANTHROPIC_API_KEY="your Anthropic API key here"
 
+# For LLM Proxy (proxy enabled automatically when set, -x to bypass)
+export LLM_PROXY_URL="http://localhost:8000/v1"
+
 Setup:
 - You already have PERPLEXITY_API_KEY set
 - You already have OPENAI_API_KEY set
 - You already have GEMINI_API_KEY set
 - You already have CEREBRAS_API_KEY set
+- You already have LLM_PROXY_URL set
 - You are connected to the internet
 
 Default models:
@@ -126,7 +130,7 @@ Use the `-i` flag for multi-turn conversations with a single model:
 - `gollm -i -f` - Interactive chat with Cerebras
 - `gollm -i -s` - Interactive chat with Claude
 - `gollm -i -p` - Interactive chat with Perplexity
-- `gollm -i -x -c` - Interactive chat with ChatGPT via LLM Proxy
+- `gollm -i -x -c` - Interactive chat with ChatGPT, bypassing LLM Proxy
 
 ### Multiline Input
 

@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/openai/openai-go"
@@ -28,6 +30,28 @@ func proxyModelName(provider Provider, model string) string {
 		return model
 	}
 	return prefix + ":" + model
+}
+
+// CheckLLMProxyHealth checks if LLM_PROXY_URL is set and the proxy is healthy.
+// Returns true only if the env var is set and the proxy responds 200 on /health.
+func CheckLLMProxyHealth() bool {
+	url := os.Getenv(llmProxyURLEnvVar)
+	if url == "" {
+		return false
+	}
+
+	baseURL := strings.TrimSuffix(url, "/v1")
+	client := http.Client{
+		Timeout: 500 * time.Millisecond,
+	}
+
+	resp, err := client.Get(baseURL + "/health")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
 }
 
 func getLLMProxyURL() string {

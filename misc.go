@@ -113,7 +113,7 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 	opts.logToJsonl = false
 	opts.readLog = false
 
-	// utility function for clarity (-x is a routing flag, not a model)
+	// utility function for clarity (-x is a bypass flag, not a model)
 	anyModelsSpecified := func(opt optionsStruct) bool {
 		return opts.useChatGPT || opts.useGemini || opts.usePerplexity || opts.useCerebras || opts.useClaude
 	}
@@ -201,7 +201,7 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 		}
 
 		if isFlag(each, "-x") {
-			opts.useLLMProxy = true
+			opts.bypassLLMProxy = true
 		}
 
 		// Claude and ChatGPT combo
@@ -224,7 +224,7 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 		return opts, fmt.Errorf("-rl provided with a model specifier flag, please provide just one or the other")
 	}
 
-	// Interactive mode requires exactly one model (-x is a routing flag, not counted)
+	// Interactive mode requires exactly one model (-x is a bypass flag, not counted)
 	if opts.interactive {
 		modelCount := 0
 		if opts.useChatGPT {

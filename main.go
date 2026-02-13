@@ -30,8 +30,9 @@ type optionsStruct struct {
 	useChatGPT    bool
 	useCerebras   bool
 	useClaude     bool
-	useLLMProxy   bool
-	logToJsonl    bool
+	bypassLLMProxy bool
+	useLLMProxy    bool
+	logToJsonl     bool
 	quietMode     bool
 	interactive   bool
 
@@ -243,7 +244,7 @@ func PrintUsage(connectedToInternet bool, logPath string) string {
 options:
 -h	show (this) help
 -i	interactive chat mode (requires single model, auto-selects first available)
--x	route calls through LLM Proxy (default: http://localhost:8000/v1)
+-x	bypass LLM Proxy (proxy is used automatically when LLM_PROXY_URL is set)
 -lg	list Gemini models
 -lc	list OpenAI models
 -la	list Anthropic models
@@ -275,6 +276,9 @@ export %s="your Cerebras API key here"
 
 # For Claude
 export %s="your Anthropic API key here"
+
+# For LLM Proxy (proxy enabled automatically when set, -x to bypass)
+export LLM_PROXY_URL="http://localhost:8000/v1"
 `
 	apiKeyExtendo := "- You already have %s set\n"
 
@@ -283,9 +287,10 @@ export %s="your Anthropic API key here"
 	haveChatGPTAPIKey := getChatGPTAPIKey() != ""
 	haveCerebrasAPIKey := getCerebrasAPIKey() != ""
 	haveClaudeAPIKey := getClaudeAPIKey() != ""
+	haveLLMProxyURL := os.Getenv(llmProxyURLEnvVar) != ""
 
 	// If we have any of the keys
-	if haveGeminiAPIKey || havePerplexityAPIKey || haveChatGPTAPIKey || haveCerebrasAPIKey || haveClaudeAPIKey {
+	if haveGeminiAPIKey || havePerplexityAPIKey || haveChatGPTAPIKey || haveCerebrasAPIKey || haveClaudeAPIKey || haveLLMProxyURL {
 		usageFmt += "\nSetup:\n"
 
 		if havePerplexityAPIKey {
@@ -306,6 +311,10 @@ export %s="your Anthropic API key here"
 
 		if haveClaudeAPIKey {
 			usageFmt += fmt.Sprintf(apiKeyExtendo, claudeApiKey)
+		}
+
+		if haveLLMProxyURL {
+			usageFmt += fmt.Sprintf(apiKeyExtendo, llmProxyURLEnvVar)
 		}
 
 	}
@@ -596,6 +605,15 @@ func main() {
 
 	// various bits of functionality use the quietMode global so we update this here
 	quietMode = opts.quietMode
+
+	// Proxy is on by default when LLM_PROXY_URL is set; -x bypasses it
+	if opts.bypassLLMProxy {
+		opts.useLLMProxy = false
+		fmt.Fprintf(os.Stderr, "LLM Proxy bypassed (-x flag).\n")
+	} else if CheckLLMProxyHealth() {
+		opts.useLLMProxy = true
+		fmt.Fprintf(os.Stderr, "LLM Proxy detected at %s, routing through proxy.\n", getLLMProxyURL())
+	}
 
 	// get whatever is being piped in (but not in interactive mode)
 	if !opts.interactive {

@@ -655,7 +655,7 @@ func InteractiveSession(o optionsStruct) {
 					if m == currentModel {
 						marker = "→ "
 					}
-					sb.WriteString(fmt.Sprintf("%s%d. `%s`\n", marker, i+1, m))
+					sb.WriteString(fmt.Sprintf("%s%d\\. `%s`\n", marker, i+1, m))
 				}
 				sb.WriteString(fmt.Sprintf("\nUse `/model <number>` to switch (e.g., `/model 2`)"))
 				RenderWithGlamourPtr(sb.String())
@@ -695,7 +695,7 @@ func InteractiveSession(o optionsStruct) {
 					if !proxyMode && !hasAPIKey(p) {
 						keyStatus = " *(no API key)*"
 					}
-					sb.WriteString(fmt.Sprintf("%s%d. %s%s\n", marker, i+1, p, keyStatus))
+					sb.WriteString(fmt.Sprintf("%s%d\\. %s%s\n", marker, i+1, p, keyStatus))
 				}
 				sb.WriteString(fmt.Sprintf("\nUse `/provider <number>` to switch (e.g., `/provider 2`)"))
 				RenderWithGlamourPtr(sb.String())
