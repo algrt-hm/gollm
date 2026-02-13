@@ -581,6 +581,13 @@ func main() {
 	// handle args
 	argc := len(os.Args)
 	argv := os.Args
+
+	// No arguments provided — show usage
+	if argc <= 1 {
+		fmt.Println(PrintUsage(connected, logPath))
+		os.Exit(0)
+	}
+
 	opts, err := handleOpts(argv, argc)
 
 	if err != nil {

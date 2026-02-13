@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -340,6 +341,20 @@ func TestHandleOpts(t *testing.T) {
 			t.Errorf("\nExpected %+v\nGot %+v", expected, ret)
 		}
 	})
+}
+
+func TestNoArgsShowsUsage(t *testing.T) {
+	// gollm with no arguments should show usage
+	// This is handled in main() before handleOpts is called, so we test the
+	// built binary directly
+	out, err := exec.Command("./gollm").CombinedOutput()
+	if err != nil {
+		t.Fatalf("Expected gollm with no args to exit cleanly, got error: %v", err)
+	}
+	output := string(out)
+	if !strings.Contains(output, "show (this) help") {
+		t.Errorf("Expected usage output, got:\n%s", output)
+	}
 }
 
 func TestCheckCarriageReturns(t *testing.T) {
