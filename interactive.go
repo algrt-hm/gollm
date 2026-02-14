@@ -85,9 +85,14 @@ func (s *Spinner) Stop() {
 	<-s.stopped
 }
 
-// MultilineReader handles multiline input with Enter for newlines and Ctrl+D to submit
+// MultilineReader handles multiline input with history and line editing.
+// Enter adds newlines (Ctrl+D submits), with support for cursor movement,
+// input history (Up/Down), and standard terminal editing shortcuts.
 type MultilineReader struct {
-	fd int
+	fd      int
+	history []string
+	histIdx int
+	saved   string // saved current input when browsing history
 }
 
 // NewMultilineReader creates a new multiline reader
@@ -97,118 +102,306 @@ func NewMultilineReader() *MultilineReader {
 	}
 }
 
-// ReadMultiline reads multiline input from the terminal
-// Enter adds a newline, Ctrl+D submits
-// Returns the complete input string and any error
+// cursorPos returns the display line and column for a cursor position in the buffer
+func cursorPos(buf []rune, cursor int) (line, col int) {
+	for i := 0; i < cursor && i < len(buf); i++ {
+		if buf[i] == '\n' {
+			line++
+			col = 0
+		} else {
+			col++
+		}
+	}
+	return
+}
+
+// lineStart returns the buffer index of the start of the line containing the cursor
+func lineStart(buf []rune, cursor int) int {
+	for i := cursor - 1; i >= 0; i-- {
+		if buf[i] == '\n' {
+			return i + 1
+		}
+	}
+	return 0
+}
+
+// lineEnd returns the buffer index of the end of the line containing the cursor
+func lineEnd(buf []rune, cursor int) int {
+	for i := cursor; i < len(buf); i++ {
+		if buf[i] == '\n' {
+			return i
+		}
+	}
+	return len(buf)
+}
+
+// redraw clears the input area and redraws the buffer, positioning the terminal
+// cursor to match the buffer cursor. prevCurLine is the display line the terminal
+// cursor was on before this call. Returns the new cursor display line.
+func (r *MultilineReader) redraw(buf []rune, cursor int, prevCurLine int) int {
+	curLine, curCol := cursorPos(buf, cursor)
+	lines := strings.Split(string(buf), "\n")
+
+	var out strings.Builder
+
+	// Move terminal cursor to start of input area
+	if prevCurLine > 0 {
+		fmt.Fprintf(&out, "\033[%dA", prevCurLine)
+	}
+	out.WriteString("\r\033[J") // column 0, clear to end of screen
+
+	// Print all lines with prompt/continuation prefixes
+	for i, line := range lines {
+		if i > 0 {
+			out.WriteString("\r\n")
+		}
+		if i == 0 {
+			out.WriteString("> ")
+		} else {
+			out.WriteString("  ")
+		}
+		out.WriteString(line)
+	}
+
+	// Position terminal cursor at the buffer cursor location
+	lastLine := len(lines) - 1
+	if lastLine > curLine {
+		fmt.Fprintf(&out, "\033[%dA", lastLine-curLine)
+	}
+	fmt.Fprintf(&out, "\r\033[%dC", curCol+2) // +2 for "> " or "  " prefix
+
+	fmt.Print(out.String())
+	return curLine
+}
+
+// ReadMultiline reads multiline input from the terminal with full line editing.
+// Enter adds a newline, Ctrl+D submits. Supports cursor movement (Left/Right,
+// Home/End, Ctrl+A/E), input history (Up/Down), and editing (Ctrl+W, Ctrl+U, Delete).
 func (r *MultilineReader) ReadMultiline() (string, error) {
-	// Check if stdin is a terminal
 	if !term.IsTerminal(r.fd) {
 		return r.readLineFallback()
 	}
 
-	// Put terminal in raw mode to capture individual keystrokes
 	oldState, err := term.MakeRaw(r.fd)
 	if err != nil {
-		// Fallback to simple line reading if raw mode fails
 		fmt.Fprintf(os.Stderr, "[raw mode failed: %v]\n", err)
 		return r.readLineFallback()
 	}
 
-	// Set up signal handler to restore terminal on interrupt
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigCh)
 
-	// Ensure terminal is restored on exit
-	restore := func() {
-		term.Restore(r.fd, oldState)
-	}
+	restore := func() { term.Restore(r.fd, oldState) }
 	defer restore()
 
-	// Handle signals in background
 	go func() {
 		<-sigCh
 		restore()
 		os.Exit(0)
 	}()
 
-	var buf strings.Builder
-	b := make([]byte, 1)
+	var buf []rune
+	cursor := 0
+	curLine := 0 // display line the terminal cursor is on
+
+	r.histIdx = len(r.history)
+	r.saved = ""
+
+	readByte := func() byte {
+		b := make([]byte, 1)
+		os.Stdin.Read(b)
+		return b[0]
+	}
 
 	for {
+		b := make([]byte, 1)
 		_, err := os.Stdin.Read(b)
 		if err != nil {
-			return buf.String(), err
+			return string(buf), err
 		}
 
 		char := b[0]
 
-		// Handle escape sequences - just skip them (arrow keys, etc.)
-		if char == 0x1b { // ESC
-			// Read and discard escape sequence
-			// Most sequences are 2-3 bytes: ESC [ X
-			seq := make([]byte, 8)
-			os.Stdin.Read(seq) // This may block briefly but escape sequences come fast
-			continue
-		}
-
-		// Ctrl+D (EOT) - submit input
-		if char == 0x04 {
-			fmt.Print("\r\n")
-			return buf.String(), nil
-		}
-
-		// Ctrl+C - abort current input
-		if char == 0x03 {
-			fmt.Print("^C\r\n")
-			return "", nil
-		}
-
-		// Enter (CR or LF) - check for commands or add newline
-		if char == '\r' || char == '\n' {
-			// Check if buffer is a command that should submit immediately
-			trimmed := strings.TrimSpace(buf.String())
-			if isImmediateCommand(trimmed) {
-				fmt.Print("\r\n")
-				return buf.String(), nil
-			}
-			// Otherwise add newline and continue
-			buf.WriteByte('\n')
-			fmt.Print("\r\n  ") // New line with continuation indent
-			continue
-		}
-
-		// Backspace handling
-		if char == 0x7f || char == 0x08 {
-			str := buf.String()
-			if len(str) > 0 {
-				if str[len(str)-1] == '\n' {
-					// Deleting a newline - move cursor up
-					buf.Reset()
-					buf.WriteString(str[:len(str)-1])
-					fmt.Print("\r\033[K") // Clear current line
-					lines := strings.Split(buf.String(), "\n")
-					if len(lines) > 0 {
-						lastLine := lines[len(lines)-1]
-						fmt.Print("\033[A\r") // Move up
-						if len(lines) == 1 {
-							fmt.Print("> " + lastLine)
-						} else {
-							fmt.Print("  " + lastLine)
+		switch {
+		case char == 0x1b: // ESC - start of escape sequence
+			next := readByte()
+			if next == '[' {
+				// CSI sequence: ESC [ <params> <final>
+				var params []byte
+				for {
+					p := readByte()
+					if p >= 0x40 && p <= 0x7E {
+						switch p {
+						case 'A': // Up - history previous
+							if len(r.history) > 0 && r.histIdx > 0 {
+								if r.histIdx == len(r.history) {
+									r.saved = string(buf)
+								}
+								r.histIdx--
+								buf = []rune(r.history[r.histIdx])
+								cursor = len(buf)
+								curLine = r.redraw(buf, cursor, curLine)
+							}
+						case 'B': // Down - history next
+							if r.histIdx < len(r.history) {
+								r.histIdx++
+								if r.histIdx == len(r.history) {
+									buf = []rune(r.saved)
+								} else {
+									buf = []rune(r.history[r.histIdx])
+								}
+								cursor = len(buf)
+								curLine = r.redraw(buf, cursor, curLine)
+							}
+						case 'C': // Right
+							if cursor < len(buf) {
+								cursor++
+								curLine = r.redraw(buf, cursor, curLine)
+							}
+						case 'D': // Left
+							if cursor > 0 {
+								cursor--
+								curLine = r.redraw(buf, cursor, curLine)
+							}
+						case 'H': // Home
+							start := lineStart(buf, cursor)
+							if cursor != start {
+								cursor = start
+								curLine = r.redraw(buf, cursor, curLine)
+							}
+						case 'F': // End
+							end := lineEnd(buf, cursor)
+							if cursor != end {
+								cursor = end
+								curLine = r.redraw(buf, cursor, curLine)
+							}
+						case '~': // Extended keys
+							switch string(params) {
+							case "3": // Delete
+								if cursor < len(buf) {
+									buf = append(buf[:cursor], buf[cursor+1:]...)
+									curLine = r.redraw(buf, cursor, curLine)
+								}
+							case "1": // Home (alternate)
+								start := lineStart(buf, cursor)
+								if cursor != start {
+									cursor = start
+									curLine = r.redraw(buf, cursor, curLine)
+								}
+							case "4": // End (alternate)
+								end := lineEnd(buf, cursor)
+								if cursor != end {
+									cursor = end
+									curLine = r.redraw(buf, cursor, curLine)
+								}
+							}
 						}
+						break
 					}
-				} else {
-					buf.Reset()
-					buf.WriteString(str[:len(str)-1])
-					fmt.Print("\b \b") // Erase character
+					params = append(params, p)
+				}
+			} else if next == 'O' {
+				// SS3 sequence
+				p := readByte()
+				switch p {
+				case 'H': // Home
+					start := lineStart(buf, cursor)
+					if cursor != start {
+						cursor = start
+						curLine = r.redraw(buf, cursor, curLine)
+					}
+				case 'F': // End
+					end := lineEnd(buf, cursor)
+					if cursor != end {
+						cursor = end
+						curLine = r.redraw(buf, cursor, curLine)
+					}
 				}
 			}
-			continue
-		}
 
-		// Regular character - add to buffer and echo
-		buf.WriteByte(char)
-		fmt.Print(string(char))
+		case char == 0x04: // Ctrl+D - submit
+			fmt.Print("\r\n")
+			result := string(buf)
+			if strings.TrimSpace(result) != "" {
+				r.history = append(r.history, result)
+			}
+			return result, nil
+
+		case char == 0x03: // Ctrl+C - cancel
+			fmt.Print("^C\r\n")
+			return "", nil
+
+		case char == 0x01: // Ctrl+A - start of line
+			start := lineStart(buf, cursor)
+			if cursor != start {
+				cursor = start
+				curLine = r.redraw(buf, cursor, curLine)
+			}
+
+		case char == 0x05: // Ctrl+E - end of line
+			end := lineEnd(buf, cursor)
+			if cursor != end {
+				cursor = end
+				curLine = r.redraw(buf, cursor, curLine)
+			}
+
+		case char == 0x15: // Ctrl+U - clear to start of line
+			start := lineStart(buf, cursor)
+			if cursor > start {
+				buf = append(buf[:start], buf[cursor:]...)
+				cursor = start
+				curLine = r.redraw(buf, cursor, curLine)
+			}
+
+		case char == 0x17: // Ctrl+W - delete word backward
+			if cursor > 0 {
+				end := cursor
+				// Skip spaces backward (stop at newline)
+				for cursor > 0 && buf[cursor-1] == ' ' {
+					cursor--
+				}
+				// Skip non-spaces backward (stop at space or newline)
+				for cursor > 0 && buf[cursor-1] != ' ' && buf[cursor-1] != '\n' {
+					cursor--
+				}
+				if cursor < end {
+					buf = append(buf[:cursor], buf[end:]...)
+					curLine = r.redraw(buf, cursor, curLine)
+				}
+			}
+
+		case char == '\r' || char == '\n': // Enter
+			trimmed := strings.TrimSpace(string(buf))
+			if isImmediateCommand(trimmed) {
+				fmt.Print("\r\n")
+				result := string(buf)
+				if strings.TrimSpace(result) != "" {
+					r.history = append(r.history, result)
+				}
+				return result, nil
+			}
+			// Insert newline at cursor position
+			buf = append(buf, 0)
+			copy(buf[cursor+1:], buf[cursor:])
+			buf[cursor] = '\n'
+			cursor++
+			curLine = r.redraw(buf, cursor, curLine)
+
+		case char == 0x7f || char == 0x08: // Backspace
+			if cursor > 0 {
+				buf = append(buf[:cursor-1], buf[cursor:]...)
+				cursor--
+				curLine = r.redraw(buf, cursor, curLine)
+			}
+
+		default: // Regular character
+			buf = append(buf, 0)
+			copy(buf[cursor+1:], buf[cursor:])
+			buf[cursor] = rune(char)
+			cursor++
+			curLine = r.redraw(buf, cursor, curLine)
+		}
 	}
 }
 
@@ -243,7 +436,7 @@ const (
 	ActionNone           CommandAction = iota // Not a command, send to LLM
 	ActionExit                                // Exit the session
 	ActionHelp                                // Show help
-	ActionAmnesia                             // Toggle amnesia mode
+	ActionMemory                              // Toggle memory mode
 	ActionListModels                          // List available models
 	ActionSwitchModel                         // Switch to a different model
 	ActionListProviders                       // List available providers
@@ -291,14 +484,14 @@ func handleCommand(input string, state *SessionState) CommandResult {
 		return CommandResult{Action: ActionHelp}
 	}
 
-	// Amnesia toggle
-	if input == "/amnesia" {
+	// Memory toggle
+	if input == "/memory" {
 		state.AmnesiaMode = !state.AmnesiaMode
-		msg := "*Amnesia mode enabled* - chat history will not be sent to the model"
-		if !state.AmnesiaMode {
-			msg = "*Amnesia mode disabled* - chat history will be sent to the model"
+		msg := "*Memory enabled* - chat history will be sent to the model"
+		if state.AmnesiaMode {
+			msg = "*Memory disabled* - chat history will not be sent to the model"
 		}
-		return CommandResult{Action: ActionAmnesia, Message: msg}
+		return CommandResult{Action: ActionMemory, Message: msg}
 	}
 
 	// Model commands
@@ -576,11 +769,16 @@ func InteractiveSession(o optionsStruct) {
 - ` + "`Enter`" + ` - add a new line (multiline input)
 - ` + "`Ctrl+D`" + ` - send message to model
 - ` + "`Ctrl+C`" + ` - cancel current input
+- ` + "`Up/Down`" + ` - cycle through input history
+- ` + "`Left/Right`" + ` - move cursor within input
+- ` + "`Home/End`" + ` or ` + "`Ctrl+A/E`" + ` - jump to start/end of line
+- ` + "`Ctrl+W`" + ` - delete word backward
+- ` + "`Ctrl+U`" + ` - clear line to left of cursor
 
 **Commands:**
 - ` + "`/help`" + ` - show this help message
 - ` + "`exit`" + ` or ` + "`quit`" + ` - end the session
-- ` + "`/amnesia`" + ` - toggle amnesia mode (disables chat history)
+- ` + "`/memory`" + ` - toggle memory mode (sends chat history to model)
 - ` + "`/model`" + ` - list available models
 - ` + "`/model <number>`" + ` - switch to a different model
 - ` + "`/provider`" + ` - list available providers
@@ -597,7 +795,7 @@ func InteractiveSession(o optionsStruct) {
 
 	var history []ChatMessage
 	mlReader := NewMultilineReader()
-	amnesiaMode := false
+	amnesiaMode := true
 	// Track if we just rendered something with glamour (which adds its own trailing newline)
 	justRendered := true
 
@@ -630,13 +828,13 @@ func InteractiveSession(o optionsStruct) {
 			continue
 		}
 
-		// Check for amnesia toggle
-		if input == "/amnesia" {
+		// Check for memory toggle
+		if input == "/memory" {
 			amnesiaMode = !amnesiaMode
-			if amnesiaMode {
-				RenderWithGlamourPtr("*Amnesia mode enabled* - chat history will not be sent to the model")
+			if !amnesiaMode {
+				RenderWithGlamourPtr("*Memory enabled* - chat history will be sent to the model")
 			} else {
-				RenderWithGlamourPtr("*Amnesia mode disabled* - chat history will be sent to the model")
+				RenderWithGlamourPtr("*Memory disabled* - chat history will not be sent to the model")
 			}
 			justRendered = true
 			continue

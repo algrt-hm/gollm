@@ -119,7 +119,7 @@ func TestHandleCommand(t *testing.T) {
 			Provider:     ProviderClaude,
 			CurrentModel: DefaultModels.Claude,
 			History:      []ChatMessage{},
-			AmnesiaMode:  false,
+			AmnesiaMode:  true,
 		}
 	}
 
@@ -141,28 +141,28 @@ func TestHandleCommand(t *testing.T) {
 		}
 	})
 
-	t.Run("amnesia_toggle", func(t *testing.T) {
+	t.Run("memory_toggle", func(t *testing.T) {
 		state := newState()
 
-		// First toggle - enable
-		result := handleCommand("/amnesia", state)
-		if result.Action != ActionAmnesia {
-			t.Errorf("expected ActionAmnesia, got %v", result.Action)
+		// First toggle - enable memory (amnesia was on by default)
+		result := handleCommand("/memory", state)
+		if result.Action != ActionMemory {
+			t.Errorf("expected ActionMemory, got %v", result.Action)
 		}
-		if !state.AmnesiaMode {
-			t.Error("expected AmnesiaMode to be true")
+		if state.AmnesiaMode {
+			t.Error("expected AmnesiaMode to be false (memory enabled)")
 		}
-		if !strings.Contains(result.Message, "enabled") {
-			t.Errorf("expected 'enabled' in message, got %q", result.Message)
+		if !strings.Contains(result.Message, "Memory enabled") {
+			t.Errorf("expected 'Memory enabled' in message, got %q", result.Message)
 		}
 
-		// Second toggle - disable
-		result = handleCommand("/amnesia", state)
-		if state.AmnesiaMode {
-			t.Error("expected AmnesiaMode to be false")
+		// Second toggle - disable memory (amnesia back on)
+		result = handleCommand("/memory", state)
+		if !state.AmnesiaMode {
+			t.Error("expected AmnesiaMode to be true (memory disabled)")
 		}
-		if !strings.Contains(result.Message, "disabled") {
-			t.Errorf("expected 'disabled' in message, got %q", result.Message)
+		if !strings.Contains(result.Message, "Memory disabled") {
+			t.Errorf("expected 'Memory disabled' in message, got %q", result.Message)
 		}
 	})
 
@@ -316,30 +316,30 @@ func TestHandleCommand(t *testing.T) {
 		}
 	})
 
-	t.Run("mid_conversation_amnesia_toggle", func(t *testing.T) {
+	t.Run("mid_conversation_memory_toggle", func(t *testing.T) {
 		state := newState()
 		state.History = []ChatMessage{
 			{Role: "user", Content: "Hello"},
 			{Role: "assistant", Content: "Hi!"},
 		}
 
-		// Enable amnesia
-		result := handleCommand("/amnesia", state)
-		if result.Action != ActionAmnesia {
-			t.Errorf("expected ActionAmnesia, got %v", result.Action)
+		// Enable memory (amnesia is on by default)
+		result := handleCommand("/memory", state)
+		if result.Action != ActionMemory {
+			t.Errorf("expected ActionMemory, got %v", result.Action)
 		}
-		if !state.AmnesiaMode {
-			t.Error("expected amnesia mode to be enabled")
+		if state.AmnesiaMode {
+			t.Error("expected memory to be enabled (amnesia off)")
 		}
 		// History should still be preserved (just not sent to model)
 		if len(state.History) != 2 {
 			t.Errorf("expected history preserved, got %d", len(state.History))
 		}
 
-		// Disable amnesia
-		result = handleCommand("/amnesia", state)
-		if state.AmnesiaMode {
-			t.Error("expected amnesia mode to be disabled")
+		// Disable memory (amnesia back on)
+		result = handleCommand("/memory", state)
+		if !state.AmnesiaMode {
+			t.Error("expected memory to be disabled (amnesia on)")
 		}
 		// History still preserved
 		if len(state.History) != 2 {
@@ -411,10 +411,10 @@ func TestHandleCommand(t *testing.T) {
 		}{
 			{"hello", ActionNone},           // Message to LLM
 			{"/help", ActionHelp},           // Help
-			{"/amnesia", ActionAmnesia},     // Enable amnesia
+			{"/memory", ActionMemory},       // Enable memory
 			{"another message", ActionNone}, // Message to LLM
 			{"/model", ActionListModels},    // List models
-			{"/amnesia", ActionAmnesia},     // Disable amnesia
+			{"/memory", ActionMemory},       // Disable memory
 			{"/provider", ActionListProviders},
 		}
 

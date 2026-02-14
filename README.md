@@ -73,7 +73,8 @@ options:
 -lc	list OpenAI models
 -la	list Anthropic models
 -t	test API keys (note: they will be displayed)
--l	enable logging of model interactions to ~/gollm_logs.jsonl
+-l	enable logging (disabled automatically when routing through LLM Proxy)
+	logs model interactions to ~/gollm_logs.jsonl
 -q	quiet mode: turns off logging and all non-essential output
 -rl	[index]	show the log index, or if an index is provided, show the LLM response
 
@@ -132,15 +133,22 @@ Use the `-i` flag for multi-turn conversations with a single model:
 - `gollm -i -p` - Interactive chat with Perplexity
 - `gollm -i -x -c` - Interactive chat with ChatGPT, bypassing LLM Proxy
 
-### Multiline Input
+### Input & Editing
 
-Interactive mode supports multiline input:
+Interactive mode supports multiline input with history and line editing:
 
 | Key | Action |
 |-----|--------|
 | `Enter` | Add a new line (continue typing), or submit if input is a command |
 | `Ctrl+D` | Send message to model |
 | `Ctrl+C` | Cancel current input |
+| `Up` / `Down` | Cycle through input history |
+| `Left` / `Right` | Move cursor within input |
+| `Home` / `End` | Jump to start/end of current line |
+| `Ctrl+A` / `Ctrl+E` | Jump to start/end of current line |
+| `Ctrl+W` | Delete word backward |
+| `Ctrl+U` | Clear from cursor to start of line |
+| `Delete` | Delete character at cursor |
 
 Note: Commands (`exit`, `quit`, `/help`, etc.) submit immediately on Enter.
 
@@ -154,7 +162,7 @@ Once in interactive mode, you can use these commands:
 |---------|-------------|
 | `/help` | Show available commands |
 | `exit` or `quit` | End the session |
-| `/amnesia` | Toggle amnesia mode (when enabled, chat history is not sent to the model) |
+| `/memory` | Toggle memory mode (when enabled, chat history is sent to the model) |
 | `/model` | List available models for current provider |
 | `/model <number>` | Switch to a different model (e.g., `/model 2`) |
 | `/provider` | List available providers (shows which have API keys configured) |
@@ -174,6 +182,8 @@ When you use the `-l` flag, gollm will log all model interactions to a file call
 - Prompt text
 - Model response
 - Timestamp
+
+Logging is automatically disabled when requests are routed through LLM Proxy. If the proxy is unreachable (or bypassed with `-x`), logging remains active.
 
 This can be useful for: tracking your API usage, analysing model performance etc.
 

@@ -249,7 +249,8 @@ options:
 -lc	list OpenAI models
 -la	list Anthropic models
 -t	test API keys (note: they will be displayed)
--l	enable logging of model interactions to %s
+-l	enable logging (disabled automatically when routing through LLM Proxy)
+	logs model interactions to %s
 -q	quiet mode: turns off logging and all non-essential output
 -rl	[index]	show the log index, or if an index is provided, show the LLM response
 
@@ -610,9 +611,17 @@ func main() {
 	if opts.bypassLLMProxy {
 		opts.useLLMProxy = false
 		fmt.Fprintf(os.Stderr, "LLM Proxy bypassed (-x flag).\n")
-	} else if CheckLLMProxyHealth() {
-		opts.useLLMProxy = true
-		fmt.Fprintf(os.Stderr, "LLM Proxy detected at %s, routing through proxy.\n", getLLMProxyURL())
+	} else if os.Getenv(llmProxyURLEnvVar) != "" {
+		if CheckLLMProxyHealth() {
+			opts.useLLMProxy = true
+			fmt.Fprintf(os.Stderr, "LLM Proxy detected at %s, routing through proxy.\n", getLLMProxyURL())
+			if opts.logToJsonl {
+				opts.logToJsonl = false
+				fmt.Fprintf(os.Stderr, "Logging disabled while using LLM Proxy.\n")
+			}
+		} else {
+			fmt.Fprintf(os.Stderr, "LLM Proxy at %s is unreachable, falling back to direct API calls.\n", getLLMProxyURL())
+		}
 	}
 
 	// get whatever is being piped in (but not in interactive mode)
