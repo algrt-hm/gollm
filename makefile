@@ -18,6 +18,7 @@ help:
 	@echo "make test   - Run tests"
 	@echo "make fmt    - Format code"
 	@echo "make update - Update dependencies"
+	@echo "make release - Bump tag and push release tag"
 
 build: $(BINARY)
 
@@ -40,6 +41,9 @@ fmt:
 
 fmt-fix-line-endings:
 	gofmt -w .
+
+release:
+	./scripts/release.sh
 
 build-all-platforms: build-linux build-macos build-windows
 
