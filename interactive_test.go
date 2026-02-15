@@ -116,10 +116,11 @@ func TestHandleCommand(t *testing.T) {
 	// Helper to create a fresh state for each test
 	newState := func() *SessionState {
 		return &SessionState{
-			Provider:     ProviderClaude,
-			CurrentModel: DefaultModels.Claude,
-			History:      []ChatMessage{},
-			AmnesiaMode:  true,
+			Provider:      ProviderClaude,
+			CurrentModel:  DefaultModels.Claude,
+			History:       []ChatMessage{},
+			AmnesiaMode:   true,
+			ShowCitations: true,
 		}
 	}
 
@@ -163,6 +164,31 @@ func TestHandleCommand(t *testing.T) {
 		}
 		if !strings.Contains(result.Message, "Memory disabled") {
 			t.Errorf("expected 'Memory disabled' in message, got %q", result.Message)
+		}
+	})
+
+	t.Run("cite_toggle", func(t *testing.T) {
+		state := newState()
+
+		// First toggle - disable citations (on by default)
+		result := handleCommand("/cite", state)
+		if result.Action != ActionCite {
+			t.Errorf("expected ActionCite, got %v", result.Action)
+		}
+		if state.ShowCitations {
+			t.Error("expected ShowCitations to be false (citations disabled)")
+		}
+		if !strings.Contains(result.Message, "Citations disabled") {
+			t.Errorf("expected 'Citations disabled' in message, got %q", result.Message)
+		}
+
+		// Second toggle - enable citations
+		result = handleCommand("/cite", state)
+		if !state.ShowCitations {
+			t.Error("expected ShowCitations to be true (citations enabled)")
+		}
+		if !strings.Contains(result.Message, "Citations enabled") {
+			t.Errorf("expected 'Citations enabled' in message, got %q", result.Message)
 		}
 	})
 

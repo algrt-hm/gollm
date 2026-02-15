@@ -167,6 +167,7 @@ Once in interactive mode, you can use these commands:
 | `/model <number>` | Switch to a different model (e.g., `/model 2`) |
 | `/provider` | List available providers (shows which have API keys configured) |
 | `/provider <number>` | Switch to a different provider (e.g., `/provider 3`) |
+| `/cite` | Toggle citation display in Perplexity responses (on by default) |
 | `/save` | Save conversation to a markdown file (prompts for filename) |
 
 Note: Interactive mode requires a single model and disables logging. A spinner is shown while waiting for model responses.

@@ -223,7 +223,7 @@ func CallPerplexityAPI(promptText string, mock bool) (string, time.Duration) {
 }
 
 // perplexityChat handles interactive chat with conversation history
-func perplexityChat(history []ChatMessage, userInput string, model string) (string, error) {
+func perplexityChat(history []ChatMessage, userInput string, model string, showCitations bool) (string, error) {
 	key := os.Getenv("PERPLEXITY_API_KEY")
 	if key == "" {
 		return "", fmt.Errorf("PERPLEXITY_API_KEY not set")
@@ -295,7 +295,25 @@ func perplexityChat(history []ChatMessage, userInput string, model string) (stri
 		return "", fmt.Errorf("no response from model")
 	}
 
-	return response.Choices[0].Message.Content, nil
+	content := response.Choices[0].Message.Content
+
+	// Format citations like non-interactive mode (FmtModelResponse)
+	if showCitations && len(response.Citations) > 0 {
+		re := regexp.MustCompile(`\[(\d+)\]`)
+		content = re.ReplaceAllString(content, "[^$1]")
+
+		content += "\n\n"
+		for idx, citation := range response.Citations {
+			content += fmt.Sprintf("[^%d]: %s\n", idx+1, citation)
+		}
+
+		content += "\n\nCitations:\n\n"
+		for idx, citation := range response.Citations {
+			content += fmt.Sprintf("%d. %s\n", idx+1, citation)
+		}
+	}
+
+	return content, nil
 }
 
 func PerplexityWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {

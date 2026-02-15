@@ -442,6 +442,7 @@ const (
 	ActionListProviders                       // List available providers
 	ActionSwitchProvider                      // Switch to a different provider
 	ActionSave                                // Save conversation
+	ActionCite                                // Toggle citation display
 	ActionEmpty                               // Empty input, ignore
 	ActionError                               // Error occurred
 )
@@ -457,11 +458,12 @@ type CommandResult struct {
 
 // SessionState holds the current state of an interactive session
 type SessionState struct {
-	Provider     Provider
-	CurrentModel string
-	History      []ChatMessage
-	AmnesiaMode  bool
-	ProxyMode    bool
+	Provider       Provider
+	CurrentModel   string
+	History        []ChatMessage
+	AmnesiaMode    bool
+	ProxyMode      bool
+	ShowCitations  bool
 }
 
 // handleCommand processes user input and returns what action to take
@@ -492,6 +494,16 @@ func handleCommand(input string, state *SessionState) CommandResult {
 			msg = "*Memory disabled* - chat history will not be sent to the model"
 		}
 		return CommandResult{Action: ActionMemory, Message: msg}
+	}
+
+	// Citation toggle
+	if input == "/cite" {
+		state.ShowCitations = !state.ShowCitations
+		msg := "*Citations enabled* - Perplexity responses will include citations"
+		if !state.ShowCitations {
+			msg = "*Citations disabled* - Perplexity responses will omit citations"
+		}
+		return CommandResult{Action: ActionCite, Message: msg}
 	}
 
 	// Model commands
@@ -671,7 +683,7 @@ func getDefaultModel(provider Provider) string {
 
 // callChat calls the appropriate chat function for the provider
 // When proxyMode is true, all calls route through the LLM Proxy
-func callChat(provider Provider, history []ChatMessage, userInput string, model string, proxyMode bool) (string, error) {
+func callChat(provider Provider, history []ChatMessage, userInput string, model string, proxyMode bool, showCitations bool) (string, error) {
 	if proxyMode {
 		return llmproxyChat(history, userInput, proxyModelName(provider, model))
 	}
@@ -685,7 +697,7 @@ func callChat(provider Provider, history []ChatMessage, userInput string, model 
 	case ProviderCerebras:
 		return cerebrasChat(history, userInput, model)
 	case ProviderPerplexity:
-		return perplexityChat(history, userInput, model)
+		return perplexityChat(history, userInput, model, showCitations)
 	default:
 		return "", fmt.Errorf("unknown provider: %s", provider)
 	}
@@ -783,6 +795,7 @@ func InteractiveSession(o optionsStruct) {
 - ` + "`/model <number>`" + ` - switch to a different model
 - ` + "`/provider`" + ` - list available providers
 - ` + "`/provider <number>`" + ` - switch to a different provider
+- ` + "`/cite`" + ` - toggle citation display in Perplexity responses
 - ` + "`/save`" + ` - save conversation to markdown file`
 
 	// Render welcome header with markdown
@@ -796,6 +809,7 @@ func InteractiveSession(o optionsStruct) {
 	var history []ChatMessage
 	mlReader := NewMultilineReader()
 	amnesiaMode := true
+	showCitations := true
 	// Track if we just rendered something with glamour (which adds its own trailing newline)
 	justRendered := true
 
@@ -835,6 +849,18 @@ func InteractiveSession(o optionsStruct) {
 				RenderWithGlamourPtr("*Memory enabled* - chat history will be sent to the model")
 			} else {
 				RenderWithGlamourPtr("*Memory disabled* - chat history will not be sent to the model")
+			}
+			justRendered = true
+			continue
+		}
+
+		// Check for citation toggle
+		if input == "/cite" {
+			showCitations = !showCitations
+			if showCitations {
+				RenderWithGlamourPtr("*Citations enabled* - Perplexity responses will include citations")
+			} else {
+				RenderWithGlamourPtr("*Citations disabled* - Perplexity responses will omit citations")
 			}
 			justRendered = true
 			continue
@@ -985,7 +1011,7 @@ func InteractiveSession(o optionsStruct) {
 		// Start spinner while waiting for response
 		spinner := NewSpinner()
 		spinner.Start()
-		response, err := callChat(provider, historyToSend, input, currentModel, proxyMode)
+		response, err := callChat(provider, historyToSend, input, currentModel, proxyMode, showCitations)
 		spinner.Stop()
 
 		if err != nil {
