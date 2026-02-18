@@ -419,7 +419,7 @@ func isImmediateCommand(input string) bool {
 		return false
 	}
 	// Exit commands
-	if input == "exit" || input == "quit" {
+	if input == "exit" || input == "quit" || input == "/exit" {
 		return true
 	}
 	// Slash commands
@@ -477,7 +477,7 @@ func handleCommand(input string, state *SessionState) CommandResult {
 	}
 
 	// Exit commands
-	if input == "exit" || input == "quit" {
+	if input == "exit" || input == "quit" || input == "/exit" {
 		return CommandResult{Action: ActionExit, Message: "*Goodbye!*"}
 	}
 
@@ -830,7 +830,7 @@ func InteractiveSession(o optionsStruct) {
 		input = strings.TrimSpace(input)
 
 		// Check for exit commands
-		if input == "exit" || input == "quit" {
+		if input == "exit" || input == "quit" || input == "/exit" {
 			RenderWithGlamourPtr("*Goodbye!*")
 			return
 		}

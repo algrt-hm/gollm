@@ -125,7 +125,7 @@ func TestHandleCommand(t *testing.T) {
 	}
 
 	t.Run("exit_commands", func(t *testing.T) {
-		for _, cmd := range []string{"exit", "quit"} {
+		for _, cmd := range []string{"exit", "quit", "/exit"} {
 			state := newState()
 			result := handleCommand(cmd, state)
 			if result.Action != ActionExit {
