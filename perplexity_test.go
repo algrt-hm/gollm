@@ -10,21 +10,32 @@ import (
 )
 
 func TestPerplexityWrapper(t *testing.T) {
-	// To turn off output if we don't want it
 	if testingSuppressOutput {
-		// Get before we overwrite ...
-		orig := RenderWithGlamourPtr
-		// ... and put it back again
-		defer func() {
-			RenderWithGlamourPtr = orig
-		}()
-		// noop
+		t.Cleanup(func() { RenderWithGlamourPtr = RenderWithGlamour })
 		RenderWithGlamourPtr = func(s string) {}
 	}
 	quietMode = false
-	promptText := "Please tell me about Perplexity"
 
-	Render(PerplexityWrapper(promptText, true, false, quietMode))
+	output := PerplexityWrapper("Please tell me about Perplexity", true, false, false)
+	if !strings.Contains(output, "# Perplexity") {
+		t.Errorf("Expected Perplexity header in output, got: %s", output)
+	}
+	if !strings.Contains(output, "Model:") {
+		t.Errorf("Expected 'Model:' status line in output, got: %s", output)
+	}
+	if !strings.Contains(output, "Citations:") {
+		t.Errorf("Expected 'Citations:' in output, got: %s", output)
+	}
+}
+
+func TestPerplexityWrapperQuietMode(t *testing.T) {
+	output := PerplexityWrapper("Please tell me about Perplexity", true, false, true)
+	if strings.Contains(output, "# Perplexity") {
+		t.Errorf("Quiet mode should not contain header, got: %s", output)
+	}
+	if !strings.Contains(output, "Citations:") {
+		t.Errorf("Expected citations even in quiet mode, got: %s", output)
+	}
 }
 
 func TestCallPerplexityAPIGeminiVersion(t *testing.T) {
