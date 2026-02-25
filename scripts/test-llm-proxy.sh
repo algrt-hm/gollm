@@ -14,7 +14,7 @@ test_proxy_model() {
     local flag="$2"
 
     echo -n "Testing $name via proxy... "
-    output=$("$GOLLM" -q -x "$flag" "$PROMPT" 2>&1)
+    output=$("$GOLLM" -q "$flag" "$PROMPT" 2>&1)
     if echo "$output" | grep -qi "pong"; then
         echo "PASS"
         return 0

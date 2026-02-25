@@ -74,6 +74,10 @@ func CerebrasMiddleWrapper(promptText string, mock bool) string {
 
 	duration := time.Since(fromTime)
 
+	if len(c.Choices) == 0 {
+		Fatalf("Cerebras response contained no choices")
+	}
+
 	// Model: sonar-pro, 135 tokens used, finished due to: length, duration: 0.000 seconds
 	fmtStr := "Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds"
 
@@ -122,6 +126,10 @@ func CerebrasWrapper(promptText string, mock bool, logToJsonl bool, quietMode bo
 	c := CerebrasLowerWrapper(promptText, mock)
 
 	duration := time.Since(fromTime)
+
+	if len(c.Choices) == 0 {
+		Fatalf("Cerebras response contained no choices")
+	}
 
 	// Log successful model call only if logging is enabled
 	if logToJsonl {

@@ -4,10 +4,7 @@ PROJECT = gollm
 BINARY = $(PROJECT)
 SOURCES = $(wildcard *.go)
 
-# Default target: build if needed, then run
-run: $(BINARY)
-	$(BINARY) -i
-
+# Default target:
 # Build only if sources are newer than binary
 $(BINARY): $(SOURCES)
 	go build -o $(BINARY) .

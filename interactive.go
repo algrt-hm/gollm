@@ -813,6 +813,15 @@ func InteractiveSession(o optionsStruct) {
 	// Track if we just rendered something with glamour (which adds its own trailing newline)
 	justRendered := true
 
+	state := &SessionState{
+		Provider:      provider,
+		CurrentModel:  currentModel,
+		History:       history,
+		AmnesiaMode:   amnesiaMode,
+		ProxyMode:     proxyMode,
+		ShowCitations: showCitations,
+	}
+
 	for {
 		if justRendered {
 			fmt.Print("> ")
@@ -829,139 +838,83 @@ func InteractiveSession(o optionsStruct) {
 
 		input = strings.TrimSpace(input)
 
-		// Check for exit commands
-		if input == "exit" || input == "quit" || input == "/exit" {
-			RenderWithGlamourPtr("*Goodbye!*")
-			return
-		}
+		result := handleCommand(input, state)
 
-		// Check for help command
-		if input == "/help" {
+		switch result.Action {
+		case ActionEmpty:
+			continue
+
+		case ActionExit:
+			RenderWithGlamourPtr(result.Message)
+			return
+
+		case ActionHelp:
 			RenderWithGlamourPtr(helpText)
 			justRendered = true
 			continue
-		}
 
-		// Check for memory toggle
-		if input == "/memory" {
-			amnesiaMode = !amnesiaMode
-			if !amnesiaMode {
-				RenderWithGlamourPtr("*Memory enabled* - chat history will be sent to the model")
-			} else {
-				RenderWithGlamourPtr("*Memory disabled* - chat history will not be sent to the model")
-			}
+		case ActionMemory:
+			RenderWithGlamourPtr(result.Message)
 			justRendered = true
 			continue
-		}
 
-		// Check for citation toggle
-		if input == "/cite" {
-			showCitations = !showCitations
-			if showCitations {
-				RenderWithGlamourPtr("*Citations enabled* - Perplexity responses will include citations")
-			} else {
-				RenderWithGlamourPtr("*Citations disabled* - Perplexity responses will omit citations")
-			}
+		case ActionCite:
+			RenderWithGlamourPtr(result.Message)
 			justRendered = true
 			continue
-		}
 
-		// Check for model command
-		if input == "/model" || strings.HasPrefix(input, "/model ") {
-			availableModels := getAvailableModels(provider)
-
-			if input == "/model" {
-				// List available models
-				var sb strings.Builder
-				sb.WriteString(fmt.Sprintf("**Available %s models:**\n\n", provider))
-				for i, m := range availableModels {
-					marker := "  "
-					if m == currentModel {
-						marker = "→ "
-					}
-					sb.WriteString(fmt.Sprintf("%s%d\\. `%s`\n", marker, i+1, m))
+		case ActionListModels:
+			availableModels := getAvailableModels(state.Provider)
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("**Available %s models:**\n\n", state.Provider))
+			for i, m := range availableModels {
+				marker := "  "
+				if m == state.CurrentModel {
+					marker = "→ "
 				}
-				sb.WriteString(fmt.Sprintf("\nUse `/model <number>` to switch (e.g., `/model 2`)"))
-				RenderWithGlamourPtr(sb.String())
-				justRendered = true
-				continue
+				sb.WriteString(fmt.Sprintf("%s%d\\. `%s`\n", marker, i+1, m))
 			}
+			sb.WriteString("\nUse `/model <number>` to switch (e.g., `/model 2`)")
+			RenderWithGlamourPtr(sb.String())
+			justRendered = true
+			continue
 
-			// Parse model number
-			parts := strings.SplitN(input, " ", 2)
-			if len(parts) == 2 {
-				numStr := strings.TrimSpace(parts[1])
-				num, err := strconv.Atoi(numStr)
-				if err != nil || num < 1 || num > len(availableModels) {
-					RenderWithGlamourPtr(fmt.Sprintf("*Invalid model number.* Use 1-%d", len(availableModels)))
-					justRendered = true
-					continue
+		case ActionSwitchModel:
+			RenderWithGlamourPtr(result.Message)
+			justRendered = true
+			continue
+
+		case ActionListProviders:
+			var sb strings.Builder
+			sb.WriteString("**Available providers:**\n\n")
+			for i, p := range AllProviders {
+				marker := "  "
+				if p == state.Provider {
+					marker = "→ "
 				}
-				currentModel = availableModels[num-1]
-				RenderWithGlamourPtr(fmt.Sprintf("*Switched to model:* `%s`", currentModel))
-				justRendered = true
-				continue
-			}
-		}
-
-		// Check for provider command
-		if input == "/provider" || strings.HasPrefix(input, "/provider ") {
-			if input == "/provider" {
-				// List available providers
-				var sb strings.Builder
-				sb.WriteString("**Available providers:**\n\n")
-				for i, p := range AllProviders {
-					marker := "  "
-					if p == provider {
-						marker = "→ "
-					}
-					keyStatus := ""
-					if !proxyMode && !hasAPIKey(p) {
-						keyStatus = " *(no API key)*"
-					}
-					sb.WriteString(fmt.Sprintf("%s%d\\. %s%s\n", marker, i+1, p, keyStatus))
+				keyStatus := ""
+				if !state.ProxyMode && !hasAPIKey(p) {
+					keyStatus = " *(no API key)*"
 				}
-				sb.WriteString(fmt.Sprintf("\nUse `/provider <number>` to switch (e.g., `/provider 2`)"))
-				RenderWithGlamourPtr(sb.String())
-				justRendered = true
-				continue
+				sb.WriteString(fmt.Sprintf("%s%d\\. %s%s\n", marker, i+1, p, keyStatus))
 			}
+			sb.WriteString("\nUse `/provider <number>` to switch (e.g., `/provider 2`)")
+			RenderWithGlamourPtr(sb.String())
+			justRendered = true
+			continue
 
-			// Parse provider number
-			parts := strings.SplitN(input, " ", 2)
-			if len(parts) == 2 {
-				numStr := strings.TrimSpace(parts[1])
-				num, err := strconv.Atoi(numStr)
-				if err != nil || num < 1 || num > len(AllProviders) {
-					RenderWithGlamourPtr(fmt.Sprintf("*Invalid provider number.* Use 1-%d", len(AllProviders)))
-					justRendered = true
-					continue
-				}
-				newProvider := AllProviders[num-1]
-				// Check if the user has an API key for this provider (skip in proxy mode)
-				if !proxyMode && !hasAPIKey(newProvider) {
-					RenderWithGlamourPtr(fmt.Sprintf("*Cannot switch to %s:* API key not set.\n\nSet the environment variable for this provider and restart.", newProvider))
-					justRendered = true
-					continue
-				}
-				provider = newProvider
-				currentModel = getDefaultModel(provider)
-				RenderWithGlamourPtr(fmt.Sprintf("*Switched to provider:* **%s**\n*Model:* `%s`", provider, currentModel))
-				justRendered = true
-				continue
-			}
-		}
+		case ActionSwitchProvider:
+			RenderWithGlamourPtr(result.Message)
+			justRendered = true
+			continue
 
-		// Check for save command (case-insensitive)
-		if strings.EqualFold(input, "/save") {
-			if len(history) == 0 {
-				RenderWithGlamourPtr("*No conversation to save yet.*")
-				justRendered = true
-				continue
-			}
+		case ActionError:
+			RenderWithGlamourPtr(result.Message)
+			justRendered = true
+			continue
 
+		case ActionSave:
 			fmt.Print("Enter filename (will be saved to $HOME if no path given): ")
-			// Use simple line reader for filename (single line input)
 			lineReader := bufio.NewReader(os.Stdin)
 			filename, err := lineReader.ReadString('\n')
 			if err != nil {
@@ -977,14 +930,13 @@ func InteractiveSession(o optionsStruct) {
 				continue
 			}
 
-			err = saveConversation(filename, history, provider, currentModel)
+			err = saveConversation(filename, state.History, state.Provider, state.CurrentModel)
 			if err != nil {
 				RenderWithGlamourPtr(fmt.Sprintf("*Error saving conversation:* %v", err))
 				justRendered = true
 				continue
 			}
 
-			// Show the full path that was saved
 			savedPath := filename
 			if !strings.Contains(filename, string(filepath.Separator)) {
 				savedPath = filepath.Join(getHomeDir(), filename)
@@ -995,23 +947,21 @@ func InteractiveSession(o optionsStruct) {
 			RenderWithGlamourPtr(fmt.Sprintf("*Conversation saved to:* `%s`", savedPath))
 			justRendered = true
 			continue
-		}
 
-		// Skip empty input
-		if input == "" {
-			continue
+		case ActionNone:
+			// Not a command — send to LLM
 		}
 
 		// Get response from model (use empty history if amnesia mode is on)
 		var historyToSend []ChatMessage
-		if !amnesiaMode {
-			historyToSend = history
+		if !state.AmnesiaMode {
+			historyToSend = state.History
 		}
 
 		// Start spinner while waiting for response
 		spinner := NewSpinner()
 		spinner.Start()
-		response, err := callChat(provider, historyToSend, input, currentModel, proxyMode, showCitations)
+		response, err := callChat(state.Provider, historyToSend, input, state.CurrentModel, state.ProxyMode, state.ShowCitations)
 		spinner.Stop()
 
 		if err != nil {
@@ -1020,8 +970,8 @@ func InteractiveSession(o optionsStruct) {
 		}
 
 		// Add to history (still track it even in amnesia mode, in case user toggles back)
-		history = append(history, ChatMessage{Role: "user", Content: input})
-		history = append(history, ChatMessage{Role: "assistant", Content: response})
+		state.History = append(state.History, ChatMessage{Role: "user", Content: input})
+		state.History = append(state.History, ChatMessage{Role: "assistant", Content: response})
 
 		// Display response with markdown rendering
 		RenderWithGlamourPtr(response)

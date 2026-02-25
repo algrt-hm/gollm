@@ -25,16 +25,16 @@ type ModelResponse struct {
 
 // struct for options
 type optionsStruct struct {
-	useGemini     bool
-	usePerplexity bool
-	useChatGPT    bool
-	useCerebras   bool
-	useClaude     bool
+	useGemini      bool
+	usePerplexity  bool
+	useChatGPT     bool
+	useCerebras    bool
+	useClaude      bool
 	bypassLLMProxy bool
 	useLLMProxy    bool
 	logToJsonl     bool
-	quietMode     bool
-	interactive   bool
+	quietMode      bool
+	interactive    bool
 
 	readLog    bool
 	readLogIdx int
@@ -69,6 +69,7 @@ var quietMode bool = false
 var logPath string
 var logPathToPrint string
 var connected bool
+var outputRenderMu sync.Mutex
 
 // So we can point this to a noop for testing
 var RenderWithGlamourPtr = RenderWithGlamour
@@ -120,6 +121,18 @@ func Render(s string) {
 	} else {
 		fmt.Println(s)
 	}
+}
+
+// printAndRenderAtomically ensures one provider's status and rendered output
+// are emitted as a single contiguous block when running providers concurrently.
+func printAndRenderAtomically(statusLine string, renderedOutput string) {
+	outputRenderMu.Lock()
+	defer outputRenderMu.Unlock()
+
+	if statusLine != "" {
+		Print(statusLine)
+	}
+	Render(renderedOutput)
 }
 
 func strSliceContains(s []string, str string) bool {
@@ -323,6 +336,8 @@ export LLM_PROXY_URL="http://localhost:8000/v1"
 
 	if connectedToInternet {
 		usageFmt += "- You are connected to the internet\n"
+	} else {
+		usageFmt += "- You are offline (or internet connectivity could not be verified)\n"
 	}
 
 	if haveChatGPTAPIKey && haveGeminiAPIKey && havePerplexityAPIKey && haveCerebrasAPIKey && haveClaudeAPIKey && connectedToInternet {
@@ -437,13 +452,16 @@ func callModels(o optionsStruct) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			var statusLine string
+			var output string
 			if o.useLLMProxy {
-				Print("Hitting Perplexity API (via proxy) ...")
-				Render(LLMProxyWrapperForProvider("Perplexity", o.promptText, proxyModelName(ProviderPerplexity, DefaultModels.Perplexity), false, o.logToJsonl, o.quietMode))
+				statusLine = "Hitting Perplexity API (via proxy) ..."
+				output = LLMProxyWrapperForProvider("Perplexity", o.promptText, proxyModelName(ProviderPerplexity, DefaultModels.Perplexity), false, o.logToJsonl, o.quietMode)
 			} else {
-				Print("Hitting Perplexity API ...")
-				Render(PerplexityWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+				statusLine = "Hitting Perplexity API ..."
+				output = PerplexityWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
 			}
+			printAndRenderAtomically(statusLine, output)
 		}()
 	}
 
@@ -451,13 +469,16 @@ func callModels(o optionsStruct) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			var statusLine string
+			var output string
 			if o.useLLMProxy {
-				Print("Hitting ChatGPT API (via proxy) ...")
-				Render(LLMProxyWrapperForProvider("ChatGPT", o.promptText, proxyModelName(ProviderChatGPT, string(DefaultModels.ChatGPT)), false, o.logToJsonl, o.quietMode))
+				statusLine = "Hitting ChatGPT API (via proxy) ..."
+				output = LLMProxyWrapperForProvider("ChatGPT", o.promptText, proxyModelName(ProviderChatGPT, string(DefaultModels.ChatGPT)), false, o.logToJsonl, o.quietMode)
 			} else {
-				Print("Hitting ChatGPT API ...")
-				Render(ChatGPTWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+				statusLine = "Hitting ChatGPT API ..."
+				output = ChatGPTWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
 			}
+			printAndRenderAtomically(statusLine, output)
 		}()
 	}
 
@@ -465,13 +486,16 @@ func callModels(o optionsStruct) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			var statusLine string
+			var output string
 			if o.useLLMProxy {
-				Print("Hitting Gemini API (via proxy) ...")
-				Render(LLMProxyWrapperForProvider("Gemini", o.promptText, proxyModelName(ProviderGemini, DefaultModels.Gemini), false, o.logToJsonl, o.quietMode))
+				statusLine = "Hitting Gemini API (via proxy) ..."
+				output = LLMProxyWrapperForProvider("Gemini", o.promptText, proxyModelName(ProviderGemini, DefaultModels.Gemini), false, o.logToJsonl, o.quietMode)
 			} else {
-				Print("Hitting Gemini API ...")
-				Render(GeminiWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+				statusLine = "Hitting Gemini API ..."
+				output = GeminiWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
 			}
+			printAndRenderAtomically(statusLine, output)
 		}()
 	}
 
@@ -479,13 +503,16 @@ func callModels(o optionsStruct) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			var statusLine string
+			var output string
 			if o.useLLMProxy {
-				Print("Hitting Cerebras API (via proxy) ...")
-				Render(LLMProxyWrapperForProvider("Cerebras", o.promptText, proxyModelName(ProviderCerebras, DefaultModels.Cerebras), false, o.logToJsonl, o.quietMode))
+				statusLine = "Hitting Cerebras API (via proxy) ..."
+				output = LLMProxyWrapperForProvider("Cerebras", o.promptText, proxyModelName(ProviderCerebras, DefaultModels.Cerebras), false, o.logToJsonl, o.quietMode)
 			} else {
-				Print("Hitting Cerebras API ...")
-				Render(CerebrasWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+				statusLine = "Hitting Cerebras API ..."
+				output = CerebrasWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
 			}
+			printAndRenderAtomically(statusLine, output)
 		}()
 	}
 
@@ -493,13 +520,16 @@ func callModels(o optionsStruct) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			var statusLine string
+			var output string
 			if o.useLLMProxy {
-				Print("Hitting Claude API (via proxy) ...")
-				Render(LLMProxyWrapperForProvider("Claude", o.promptText, proxyModelName(ProviderClaude, DefaultModels.Claude), false, o.logToJsonl, o.quietMode))
+				statusLine = "Hitting Claude API (via proxy) ..."
+				output = LLMProxyWrapperForProvider("Claude", o.promptText, proxyModelName(ProviderClaude, DefaultModels.Claude), false, o.logToJsonl, o.quietMode)
 			} else {
-				Print("Hitting Claude API ...")
-				Render(ClaudeWrapper(o.promptText, false, o.logToJsonl, o.quietMode))
+				statusLine = "Hitting Claude API ..."
+				output = ClaudeWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
 			}
+			printAndRenderAtomically(statusLine, output)
 		}()
 	}
 
@@ -580,7 +610,8 @@ func init() {
 	temp, err := CheckInternetHTTP()
 
 	if err != nil {
-		Fatalf("Issue with checking internet connection. Err is %v\n", err)
+		connected = false
+		return
 	}
 
 	// update global

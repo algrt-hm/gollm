@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -9,6 +10,27 @@ import (
 
 func TestFilletHelp(t *testing.T) {
 	// Here we essentially test that the README.md example of gollm -h updated and correct
+	// Set all API keys so the dynamic "Setup:" section matches the README
+	envVars := map[string]string{
+		"PERPLEXITY_API_KEY": "test",
+		"OPENAI_API_KEY":     "test",
+		"GEMINI_API_KEY":     "test",
+		"CEREBRAS_API_KEY":   "test",
+		"ANTHROPIC_API_KEY":  "test",
+		"LLM_PROXY_URL":     "http://localhost:8000/v1",
+	}
+	for k, v := range envVars {
+		key := k // capture for closure
+		prev, had := os.LookupEnv(key)
+		os.Setenv(key, v)
+		if had {
+			prevVal := prev // capture for closure
+			t.Cleanup(func() { os.Setenv(key, prevVal) })
+		} else {
+			t.Cleanup(func() { os.Unsetenv(key) })
+		}
+	}
+
 	ret := filletHelp(getReadme())
 
 	// check that ret is a single slice
@@ -60,6 +82,13 @@ func TestFilletHelp(t *testing.T) {
 
 	if helpFromReadme != helpFromCode {
 		t.Errorf("Expected help from readme to match help from code, help from readme is:\n%s\nhelp from code is:\n%s", helpFromReadme, helpFromCode)
+	}
+}
+
+func TestPrintUsageOfflineStatusLine(t *testing.T) {
+	usage := PrintUsage(false, getLogPath())
+	if !strings.Contains(usage, "- You are offline (or internet connectivity could not be verified)") {
+		t.Errorf("Expected offline status line in usage output, got:\n%s", usage)
 	}
 }
 

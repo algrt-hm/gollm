@@ -71,7 +71,11 @@ func ParsePerplexityResponse(result string) ModelResponse {
 	var response PerplexityResponse
 	err := json.Unmarshal([]byte(result), &response)
 	if err != nil {
-		Fatalf("Failed to unmarshal hardcoded mock JSON response: %v\nResponse was: %s", err, result)
+		Fatalf("Failed to unmarshal Perplexity JSON response: %v\nResponse was: %s", err, result)
+	}
+
+	if len(response.Choices) == 0 {
+		Fatalf("Perplexity response contained no choices.\nResponse was: %s", result)
 	}
 
 	model := response.Model
@@ -199,25 +203,28 @@ func CallPerplexityAPI(promptText string, mock bool) (string, time.Duration) {
 
 	payload := bytes.NewReader(payloadBytes)
 
-	req, _ := http.NewRequest("POST", url, payload)
+	req, err := http.NewRequest("POST", url, payload)
+	if err != nil {
+		Fatalf("Failed to create Perplexity request: %v", err)
+	}
 
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", key))
 	req.Header.Add("Content-Type", "application/json")
 
-	// Print the request
-	// fmt.Printf("%+v", req)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		Fatalf("Perplexity request failed: %v", err)
+	}
+	defer res.Body.Close()
 
-	res, _ := http.DefaultClient.Do(req)
-
-	// Print the response
-	// fmt.Printf("%+v", res)
-
-	if res.StatusCode != 200 {
-		fmt.Printf("Some issue: %+v", res)
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		Fatalf("Failed to read Perplexity response body: %v", err)
 	}
 
-	defer res.Body.Close()
-	body, _ := io.ReadAll(res.Body)
+	if res.StatusCode != 200 {
+		Fatalf("Perplexity API error (status %d): %s", res.StatusCode, string(body))
+	}
 
 	return string(body), time.Since(startTime)
 }
@@ -317,14 +324,7 @@ func perplexityChat(history []ChatMessage, userInput string, model string, showC
 }
 
 func PerplexityWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {
-	var response PerplexityResponse
-
 	result, duration := CallPerplexityAPI(promptText, mock)
-
-	err := json.Unmarshal([]byte(result), &response)
-	if err != nil {
-		Fatalf("Failed to unmarshal hardcoded mock JSON response: %v\nResponse was: %s", err, result)
-	}
 
 	modelResponse := ParsePerplexityResponse(result)
 

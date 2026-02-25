@@ -110,8 +110,10 @@ Setup:
 - You already have OPENAI_API_KEY set
 - You already have GEMINI_API_KEY set
 - You already have CEREBRAS_API_KEY set
+- You already have ANTHROPIC_API_KEY set
 - You already have LLM_PROXY_URL set
 - You are connected to the internet
+- We're ready to rumble :)
 
 Default models:
 - Perplexity: sonar-pro
