@@ -58,23 +58,30 @@ func getReadme() []string {
 func filletHelp(lines []string) []string {
 	var result []string
 	inCodeBlock := false
+	capturing := false // only capture content from plain ``` blocks
 	var currentBlock []string
 
 	for _, line := range lines {
-		// Check if line starts with ``` to handle code blocks with or without language specifiers
-		if strings.HasPrefix(strings.TrimSpace(line), "```") {
+		trimmed := strings.TrimSpace(line)
+		// Check if line starts with ``` to handle code blocks
+		if strings.HasPrefix(trimmed, "```") {
 			if inCodeBlock {
-				// End of code block, add to result if not empty
-				if len(currentBlock) > 0 {
+				// End of code block, add to result if capturing and not empty
+				if capturing && len(currentBlock) > 0 {
 					result = append(result, strings.Join(currentBlock, "\n"))
 					currentBlock = []string{}
 				}
+				inCodeBlock = false
+				capturing = false
 			} else {
-				// Start of code block
-				currentBlock = []string{}
+				inCodeBlock = true
+				if trimmed == "```" {
+					// Plain ``` block (no language specifier) - capture it
+					capturing = true
+					currentBlock = []string{}
+				}
 			}
-			inCodeBlock = !inCodeBlock
-		} else if inCodeBlock {
+		} else if capturing {
 			// Inside a code block, add line to current block
 			currentBlock = append(currentBlock, line)
 		}

@@ -10,19 +10,64 @@ gollm is a simple tool that connects your terminal to powerful AI models like Op
 - Convenience: Interact with AI without leaving your terminal
 - Scripting: Integrate AI capabilities into your shell workflows or scripts
 
-## What does it look like
+## Interactive functionality
 
-![Usage screenshot](./doc/Screenshot2025-09-23.png)
+Use the `-i` flag for multi-turn conversations with a single model:
 
-(Note that in the above screenshot `gollm` is aliased to `gollm -l`, hence logging is enabled)
+- `gollm -i` - Interactive chat (auto-selects provider: Cerebras > Claude > ChatGPT > Gemini > Perplexity)
+- `gollm -i -c` - Interactive chat with ChatGPT
+- `gollm -i -g` - Interactive chat with Gemini
+- `gollm -i -f` - Interactive chat with Cerebras
+- `gollm -i -s` - Interactive chat with Claude
+- `gollm -i -p` - Interactive chat with Perplexity
+- `gollm -i -x -c` - Interactive chat with ChatGPT, bypassing LLM Proxy
 
-## How to use
+![Interactive mode screenshot](./doc/gollm_interactive_screen.png)
+
+### Input
+
+Interactive mode supports multiline input with history and line editing:
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Add a new line (continue typing), or submit if input is a command |
+| `Ctrl+D` | Send message to model |
+| `Ctrl+C` | Cancel current input |
+| `Up` / `Down` | Cycle through input history |
+| `Left` / `Right` | Move cursor within input |
+| `Home` / `End` | Jump to start/end of current line |
+| `Ctrl+A` / `Ctrl+E` | Jump to start/end of current line |
+| `Ctrl+W` | Delete word backward |
+| `Ctrl+U` | Clear from cursor to start of line |
+| `Delete` | Delete character at cursor |
+
+Note: Commands (`exit`, `quit`, `/help`, etc.) submit immediately on Enter.
+
+**Troubleshooting:** If your terminal appears corrupted after exiting (garbled text, no echo), run `reset` or `stty sane` to restore it.
+
+### Interactive commands
+
+Once in interactive mode, you can use these commands:
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show available commands |
+| `exit`, `quit`, or `/exit` | End the session |
+| `/memory` | Toggle memory mode (when enabled, chat history is sent to the model) |
+| `/model` | List available models for current provider |
+| `/model <number>` | Switch to a different model (e.g., `/model 2`) |
+| `/provider` | List available providers (shows which have API keys configured) |
+| `/provider <number>` | Switch to a different provider (e.g., `/provider 3`) |
+| `/cite` | Toggle citation display in Perplexity responses (on by default) |
+| `/save` | Save conversation to a markdown file (prompts for filename) |
+
+Note: Interactive mode requires a single model and disables logging. A spinner is shown while waiting for model responses.
+
+## Building / downloading
 
 ### Build locally
 
 - Simply clone the repo and run `make build`; note that for this to work you will need a recent version of the Go programming language installed, see `go.mod` for required version
-- Binaries for Mac, Windows and Linux will build in the `/bin` folder
-- Note that the MacOS binaries are the ones labelled darwin and are available for both Apple Silicon (`gollm-darwin-arm64`) and Intel architectures (`gollm-darwin-amd64`)
 
 ### Download from Github
 
@@ -32,9 +77,11 @@ In the top right of the Github repo at <https://github.com/algrt-hm/gollm> you w
 
 which when clicked will take you to a page where you can download the binary. Alternatively you can use this link: <https://github.com/algrt-hm/gollm/releases>
 
-## Functionality
+#### `$PATH`
 
 Once you have obtained the binary for your operating system and architecture, you will most likely want to move or copy the binary name to `gollm` in a location specified within your `$PATH` variable.
+
+## Non-interactive usage
 
 You run the `gollm` command followed by your question or instruction. For example:
 
@@ -59,6 +106,17 @@ By way of a more advanced example:
 (Note: You'll need to set it up first, which involves getting API keys from the AI providers.)
 
 If you only want to use one model, you can specify that with flags ...
+
+I use an expanded version of the above to auto-generate git commit messages which I then copy and paste:
+
+```bash
+f-commit-pls () {
+        (
+                printf "Please generate a commit message based on this diff. The format should be a single sentence followed by more detail in bullet points. Please do not use markdown apart from bullet points. Please do not use any formatting except backticks and bullet points which are fine. The end of a bullet point should not have a full-stop (period) at the end. The end of the title of the commit should not have a full-stop (period) at the end.\n\n---\n\n"
+                git status -v
+        ) | gollm -l -q -c
+}
+```
 
 ## Usage
 
@@ -122,57 +180,6 @@ Default models:
 - Cerebras: gpt-oss-120b
 - Claude: claude-sonnet-4-5-20250929
 ```
-
-## Interactive Mode
-
-Use the `-i` flag for multi-turn conversations with a single model:
-
-- `gollm -i` - Interactive chat (auto-selects provider: Cerebras > Claude > ChatGPT > Gemini > Perplexity)
-- `gollm -i -c` - Interactive chat with ChatGPT
-- `gollm -i -g` - Interactive chat with Gemini
-- `gollm -i -f` - Interactive chat with Cerebras
-- `gollm -i -s` - Interactive chat with Claude
-- `gollm -i -p` - Interactive chat with Perplexity
-- `gollm -i -x -c` - Interactive chat with ChatGPT, bypassing LLM Proxy
-
-### Input & Editing
-
-Interactive mode supports multiline input with history and line editing:
-
-| Key | Action |
-|-----|--------|
-| `Enter` | Add a new line (continue typing), or submit if input is a command |
-| `Ctrl+D` | Send message to model |
-| `Ctrl+C` | Cancel current input |
-| `Up` / `Down` | Cycle through input history |
-| `Left` / `Right` | Move cursor within input |
-| `Home` / `End` | Jump to start/end of current line |
-| `Ctrl+A` / `Ctrl+E` | Jump to start/end of current line |
-| `Ctrl+W` | Delete word backward |
-| `Ctrl+U` | Clear from cursor to start of line |
-| `Delete` | Delete character at cursor |
-
-Note: Commands (`exit`, `quit`, `/help`, etc.) submit immediately on Enter.
-
-**Troubleshooting:** If your terminal appears corrupted after exiting (garbled text, no echo), run `reset` or `stty sane` to restore it.
-
-### Interactive Commands
-
-Once in interactive mode, you can use these commands:
-
-| Command | Description |
-|---------|-------------|
-| `/help` | Show available commands |
-| `exit` or `quit` | End the session |
-| `/memory` | Toggle memory mode (when enabled, chat history is sent to the model) |
-| `/model` | List available models for current provider |
-| `/model <number>` | Switch to a different model (e.g., `/model 2`) |
-| `/provider` | List available providers (shows which have API keys configured) |
-| `/provider <number>` | Switch to a different provider (e.g., `/provider 3`) |
-| `/cite` | Toggle citation display in Perplexity responses (on by default) |
-| `/save` | Save conversation to a markdown file (prompts for filename) |
-
-Note: Interactive mode requires a single model and disables logging. A spinner is shown while waiting for model responses.
 
 ## Logging
 
