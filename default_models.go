@@ -24,10 +24,10 @@ var DefaultModels = struct {
 	Claude     string
 }{
 	Perplexity: "sonar-pro",
-	Gemini:     "models/gemini-3-pro-preview",
-	ChatGPT:    "gpt-5.2",
+	Gemini:     "models/gemini-3.1-pro-preview",
+	ChatGPT:    "gpt-5.4",
 	Cerebras:   cerebrasModel,
-	Claude:     "claude-sonnet-4-5-20250929",
+	Claude:     "claude-sonnet-4-6",
 }
 
 // AvailableModels lists models available for each provider in interactive mode
@@ -39,11 +39,13 @@ var AvailableModels = struct {
 	Perplexity []string
 }{
 	Claude: []string{
+		"claude-sonnet-4-6",
 		"claude-sonnet-4-5-20250929",
 		"claude-opus-4-20250514",
 		"claude-3-5-haiku-20241022",
 	},
 	ChatGPT: []string{
+		"gpt-5.4",
 		"gpt-5.2",
 		"gpt-4.1",
 		"gpt-4.1-mini",
@@ -51,6 +53,7 @@ var AvailableModels = struct {
 		"o4-mini",
 	},
 	Gemini: []string{
+		"models/gemini-3.1-pro-preview",
 		"models/gemini-3-pro-preview",
 		"models/gemini-2.5-pro-preview-06-05",
 		"models/gemini-2.5-flash-preview-05-20",

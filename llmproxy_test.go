@@ -16,14 +16,14 @@ func TestLLMProxyWrapperForProvider(t *testing.T) {
 	}
 
 	t.Run("mock_response_contains_expected_content", func(t *testing.T) {
-		result := LLMProxyWrapperForProvider("ChatGPT", "Mock prompt", "openai:gpt-5.2", true, false, true)
+		result := LLMProxyWrapperForProvider("ChatGPT", "Mock prompt", "openai:gpt-5.4", true, false, true)
 		if result != "This is a mocked LLM Proxy response." {
 			t.Errorf("Expected mocked response content, got %q", result)
 		}
 	})
 
 	t.Run("mock_response_has_provider_header_in_normal_mode", func(t *testing.T) {
-		result := LLMProxyWrapperForProvider("ChatGPT", "Mock prompt", "openai:gpt-5.2", true, false, false)
+		result := LLMProxyWrapperForProvider("ChatGPT", "Mock prompt", "openai:gpt-5.4", true, false, false)
 		if !strings.Contains(result, "# ChatGPT (via proxy)") {
 			t.Errorf("Expected '# ChatGPT (via proxy)' header, got %q", result)
 		}
@@ -214,9 +214,9 @@ func TestProxyModelName(t *testing.T) {
 		model    string
 		expected string
 	}{
-		{ProviderChatGPT, "gpt-5.2", "openai:gpt-5.2"},
-		{ProviderClaude, "claude-sonnet-4-5-20250929", "anthropic:claude-sonnet-4-5-20250929"},
-		{ProviderGemini, "models/gemini-3-pro-preview", "gemini:models/gemini-3-pro-preview"},
+		{ProviderChatGPT, "gpt-5.4", "openai:gpt-5.4"},
+		{ProviderClaude, "claude-sonnet-4-6", "anthropic:claude-sonnet-4-6"},
+		{ProviderGemini, "models/gemini-3.1-pro-preview", "gemini:models/gemini-3.1-pro-preview"},
 		{ProviderCerebras, "gpt-oss-120b", "cerebras:gpt-oss-120b"},
 		{ProviderPerplexity, "sonar-pro", "perplexity:sonar-pro"},
 	}

@@ -67,7 +67,7 @@ func LLMProxyGenChatCompletionMock() *openai.ChatCompletion {
 		ID:      "llmproxy-mock-123",
 		Object:  "chat.completion",
 		Created: 1677652288,
-		Model:   "openai:gpt-5.2",
+		Model:   "openai:gpt-5.4",
 		Choices: []openai.ChatCompletionChoice{
 			{
 				Index: 0,

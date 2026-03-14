@@ -175,10 +175,10 @@ Setup:
 
 Default models:
 - Perplexity: sonar-pro
-- ChatGPT: gpt-5.2
-- Gemini: models/gemini-3-pro-preview
+- ChatGPT: gpt-5.4
+- Gemini: models/gemini-3.1-pro-preview
 - Cerebras: gpt-oss-120b
-- Claude: claude-sonnet-4-5-20250929
+- Claude: claude-sonnet-4-6
 ```
 
 ## Logging

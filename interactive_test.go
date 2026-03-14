@@ -16,7 +16,7 @@ func TestFormatConversationMarkdown(t *testing.T) {
 		{Role: "assistant", Content: "I'm doing well, thanks!"},
 	}
 
-	result := formatConversationMarkdown(history, ProviderClaude, "claude-sonnet-4-5-20250929")
+	result := formatConversationMarkdown(history, ProviderClaude, "claude-sonnet-4-6")
 
 	// Check header
 	if !strings.Contains(result, "# Conversation Log") {
@@ -29,7 +29,7 @@ func TestFormatConversationMarkdown(t *testing.T) {
 	}
 
 	// Check model
-	if !strings.Contains(result, "**Model:** claude-sonnet-4-5-20250929") {
+	if !strings.Contains(result, "**Model:** claude-sonnet-4-6") {
 		t.Error("Expected model in output")
 	}
 
