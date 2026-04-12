@@ -418,7 +418,7 @@ func callModels(o optionsStruct) {
 	}
 
 	// Let the user know if we're logging
-	if !o.quietMode {
+	if !o.quietMode && o.logToJsonl {
 		Print("Logging to " + logPathToPrint)
 	}
 
