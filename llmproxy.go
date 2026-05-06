@@ -21,6 +21,7 @@ var providerProxyPrefix = map[Provider]string{
 	ProviderGemini:     "gemini",
 	ProviderCerebras:   "cerebras",
 	ProviderPerplexity: "perplexity",
+	ProviderDeepseek:   "deepseek",
 }
 
 // proxyModelName transforms a provider + model into a proxy-prefixed model name

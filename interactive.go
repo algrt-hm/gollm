@@ -594,6 +594,7 @@ const (
 	ProviderGemini     Provider = "Gemini"
 	ProviderCerebras   Provider = "Cerebras"
 	ProviderPerplexity Provider = "Perplexity"
+	ProviderDeepseek   Provider = "DeepSeek"
 )
 
 // AllProviders lists all available providers
@@ -603,6 +604,7 @@ var AllProviders = []Provider{
 	ProviderGemini,
 	ProviderCerebras,
 	ProviderPerplexity,
+	ProviderDeepseek,
 }
 
 // ProviderPreference defines the order of preference for auto-selecting a provider
@@ -613,6 +615,7 @@ var ProviderPreference = []Provider{
 	ProviderChatGPT,
 	ProviderGemini,
 	ProviderPerplexity,
+	ProviderDeepseek,
 }
 
 // hasAPIKey checks if an API key is set for the given provider
@@ -628,6 +631,8 @@ func hasAPIKey(provider Provider) bool {
 		return getCerebrasAPIKey() != ""
 	case ProviderPerplexity:
 		return getPerplexityAPIKey() != ""
+	case ProviderDeepseek:
+		return getDeepseekAPIKey() != ""
 	default:
 		return false
 	}
@@ -658,6 +663,8 @@ func getAvailableModels(provider Provider) []string {
 		return AvailableModels.Cerebras
 	case ProviderPerplexity:
 		return AvailableModels.Perplexity
+	case ProviderDeepseek:
+		return AvailableModels.Deepseek
 	default:
 		return nil
 	}
@@ -676,6 +683,8 @@ func getDefaultModel(provider Provider) string {
 		return DefaultModels.Cerebras
 	case ProviderPerplexity:
 		return DefaultModels.Perplexity
+	case ProviderDeepseek:
+		return DefaultModels.Deepseek
 	default:
 		return ""
 	}
@@ -698,6 +707,8 @@ func callChat(provider Provider, history []ChatMessage, userInput string, model 
 		return cerebrasChat(history, userInput, model)
 	case ProviderPerplexity:
 		return perplexityChat(history, userInput, model, showCitations)
+	case ProviderDeepseek:
+		return deepseekChat(history, userInput, model)
 	default:
 		return "", fmt.Errorf("unknown provider: %s", provider)
 	}
@@ -772,6 +783,9 @@ func InteractiveSession(o optionsStruct) {
 	case o.usePerplexity:
 		provider = ProviderPerplexity
 		currentModel = DefaultModels.Perplexity
+	case o.useDeepseek:
+		provider = ProviderDeepseek
+		currentModel = DefaultModels.Deepseek
 	default:
 		Fatalf("No model selected for interactive mode")
 	}

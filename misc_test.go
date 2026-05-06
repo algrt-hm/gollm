@@ -17,7 +17,8 @@ func TestFilletHelp(t *testing.T) {
 		"GEMINI_API_KEY":     "test",
 		"CEREBRAS_API_KEY":   "test",
 		"ANTHROPIC_API_KEY":  "test",
-		"LLM_PROXY_URL":     "http://localhost:8000/v1",
+		"DEEPSEEK_API_KEY":   "test",
+		"LLM_PROXY_URL":      "http://localhost:8000/v1",
 	}
 	for k, v := range envVars {
 		key := k // capture for closure
@@ -114,6 +115,7 @@ func TestHandleOpts(t *testing.T) {
 			useChatGPT:    true,
 			useCerebras:   true,
 			useClaude:     true,
+			useDeepseek:   true,
 			logToJsonl:    false,
 			quietMode:     false,
 
@@ -274,6 +276,7 @@ func TestHandleOpts(t *testing.T) {
 			useChatGPT:    true,
 			useCerebras:   true,
 			useClaude:     true,
+			useDeepseek:   true,
 			logToJsonl:    false,
 			quietMode:     false,
 

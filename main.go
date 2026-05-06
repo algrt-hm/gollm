@@ -30,6 +30,7 @@ type optionsStruct struct {
 	useChatGPT     bool
 	useCerebras    bool
 	useClaude      bool
+	useDeepseek    bool
 	bypassLLMProxy bool
 	useLLMProxy    bool
 	logToJsonl     bool
@@ -55,6 +56,7 @@ const geminiApiKey = "GEMINI_API_KEY"
 const chatGPTApiKey = "OPENAI_API_KEY"
 const cerebrasApiKey = "CEREBRAS_API_KEY"
 const claudeApiKey = "ANTHROPIC_API_KEY"
+const deepseekApiKey = "DEEPSEEK_API_KEY"
 
 // Suppress output for tests
 // ... can be nice in development to turn this off for the full output in tests
@@ -169,6 +171,10 @@ func getClaudeAPIKey() string {
 	return os.Getenv(claudeApiKey)
 }
 
+func getDeepseekAPIKey() string {
+	return os.Getenv(deepseekApiKey)
+}
+
 func GetPerplexityAPIKeyOrBail() string {
 	ret := getPerplexityAPIKey()
 	if ret == "" {
@@ -209,9 +215,17 @@ func GetClaudeAPIKeyOrBail() string {
 	return ret
 }
 
+func GetDeepseekAPIKeyOrBail() string {
+	ret := getDeepseekAPIKey()
+	if ret == "" {
+		Fatalf("%s is not set", deepseekApiKey)
+	}
+	return ret
+}
+
 func PrintAPIKeys() {
-	fmtStr := "\nPerplexity API key is: %+v\nChatGPT API key is: %+v\nGemini API key is: %+v\nClaude API key is: %+v\n"
-	fmt.Printf(fmtStr, getPerplexityAPIKey(), getChatGPTAPIKey(), getGeminiAPIKey(), getClaudeAPIKey())
+	fmtStr := "\nPerplexity API key is: %+v\nChatGPT API key is: %+v\nGemini API key is: %+v\nClaude API key is: %+v\nDeepSeek API key is: %+v\n"
+	fmt.Printf(fmtStr, getPerplexityAPIKey(), getChatGPTAPIKey(), getGeminiAPIKey(), getClaudeAPIKey(), getDeepseekAPIKey())
 }
 
 func RenderWithGlamour(text string) {
@@ -238,7 +252,8 @@ func fmtDefaultModels() string {
 - ChatGPT: %s
 - Gemini: %s
 - Cerebras: %s
-- Claude: %s`
+- Claude: %s
+- DeepSeek: %s`
 
 	return fmt.Sprintf(s,
 		DefaultModels.Perplexity,
@@ -246,6 +261,7 @@ func fmtDefaultModels() string {
 		DefaultModels.Gemini,
 		DefaultModels.Cerebras,
 		DefaultModels.Claude,
+		DefaultModels.Deepseek,
 	) + "\n"
 }
 
@@ -273,6 +289,7 @@ model:
 -f	use Cerebras
 -p	use Perplexity
 -s	use Claude (Sonnet)
+-d	use DeepSeek
 
 API keys should be set using the environment variables below:
 
@@ -291,6 +308,9 @@ export %s="your Cerebras API key here"
 # For Claude
 export %s="your Anthropic API key here"
 
+# For DeepSeek
+export %s="your DeepSeek API key here"
+
 # For LLM Proxy (proxy enabled automatically when set, -x to bypass)
 export LLM_PROXY_URL="http://localhost:8000/v1"
 `
@@ -301,10 +321,11 @@ export LLM_PROXY_URL="http://localhost:8000/v1"
 	haveChatGPTAPIKey := getChatGPTAPIKey() != ""
 	haveCerebrasAPIKey := getCerebrasAPIKey() != ""
 	haveClaudeAPIKey := getClaudeAPIKey() != ""
+	haveDeepseekAPIKey := getDeepseekAPIKey() != ""
 	haveLLMProxyURL := os.Getenv(llmProxyURLEnvVar) != ""
 
 	// If we have any of the keys
-	if haveGeminiAPIKey || havePerplexityAPIKey || haveChatGPTAPIKey || haveCerebrasAPIKey || haveClaudeAPIKey || haveLLMProxyURL {
+	if haveGeminiAPIKey || havePerplexityAPIKey || haveChatGPTAPIKey || haveCerebrasAPIKey || haveClaudeAPIKey || haveDeepseekAPIKey || haveLLMProxyURL {
 		usageFmt += "\nSetup:\n"
 
 		if havePerplexityAPIKey {
@@ -327,6 +348,10 @@ export LLM_PROXY_URL="http://localhost:8000/v1"
 			usageFmt += fmt.Sprintf(apiKeyExtendo, claudeApiKey)
 		}
 
+		if haveDeepseekAPIKey {
+			usageFmt += fmt.Sprintf(apiKeyExtendo, deepseekApiKey)
+		}
+
 		if haveLLMProxyURL {
 			usageFmt += fmt.Sprintf(apiKeyExtendo, llmProxyURLEnvVar)
 		}
@@ -340,14 +365,14 @@ export LLM_PROXY_URL="http://localhost:8000/v1"
 		usageFmt += "- You are offline (or internet connectivity could not be verified)\n"
 	}
 
-	if haveChatGPTAPIKey && haveGeminiAPIKey && havePerplexityAPIKey && haveCerebrasAPIKey && haveClaudeAPIKey && connectedToInternet {
+	if haveChatGPTAPIKey && haveGeminiAPIKey && havePerplexityAPIKey && haveCerebrasAPIKey && haveClaudeAPIKey && haveDeepseekAPIKey && connectedToInternet {
 		usageFmt += "- We're ready to rumble :)\n"
 	}
 
 	usageFmt += "\n"
 
 	// os.Args[0] may be a nonsensical if testing
-	usage := fmt.Sprintf(usageFmt, "gollm", logPathToPrint, perplexityApiKey, chatGPTApiKey, geminiApiKey, cerebrasApiKey, claudeApiKey)
+	usage := fmt.Sprintf(usageFmt, "gollm", logPathToPrint, perplexityApiKey, chatGPTApiKey, geminiApiKey, cerebrasApiKey, claudeApiKey, deepseekApiKey)
 	return usage + fmtDefaultModels()
 }
 
@@ -407,7 +432,11 @@ func callModels(o optionsStruct) {
 		modelsNameSlice = append(modelsNameSlice, "Claude")
 	}
 
-	if o.useCerebras || o.usePerplexity || o.useGemini || o.useChatGPT || o.useClaude {
+	if o.useDeepseek {
+		modelsNameSlice = append(modelsNameSlice, "DeepSeek")
+	}
+
+	if o.useCerebras || o.usePerplexity || o.useGemini || o.useChatGPT || o.useClaude || o.useDeepseek {
 		sort.Strings(modelsNameSlice)
 		outS := strings.Join(modelsNameSlice, ", ")
 		if o.useLLMProxy {
@@ -442,6 +471,10 @@ func callModels(o optionsStruct) {
 
 		if o.useClaude && getClaudeAPIKey() == "" {
 			Fatalf("Please set environment variable %s to use Claude", claudeApiKey)
+		}
+
+		if o.useDeepseek && getDeepseekAPIKey() == "" {
+			Fatalf("Please set environment variable %s to use DeepSeek", deepseekApiKey)
 		}
 	}
 
@@ -528,6 +561,23 @@ func callModels(o optionsStruct) {
 			} else {
 				statusLine = "Hitting Claude API ..."
 				output = ClaudeWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
+			}
+			printAndRenderAtomically(statusLine, output)
+		}()
+	}
+
+	if o.useDeepseek {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var statusLine string
+			var output string
+			if o.useLLMProxy {
+				statusLine = "Hitting DeepSeek API (via proxy) ..."
+				output = LLMProxyWrapperForProvider("DeepSeek", o.promptText, proxyModelName(ProviderDeepseek, DefaultModels.Deepseek), false, o.logToJsonl, o.quietMode)
+			} else {
+				statusLine = "Hitting DeepSeek API ..."
+				output = DeepseekWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
 			}
 			printAndRenderAtomically(statusLine, output)
 		}()

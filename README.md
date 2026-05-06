@@ -2,7 +2,7 @@
 
 ## What is `gollm`?
 
-gollm is a simple tool that connects your terminal to powerful AI models like OpenAI's ChatGPT, Google's Gemini, Anthropic's Claude, Perplexity, and Cerebras
+gollm is a simple tool that connects your terminal to powerful AI models like OpenAI's ChatGPT, Google's Gemini, Anthropic's Claude, Perplexity, Cerebras, and DeepSeek
 
 ## Why use `gollm`?
 
@@ -14,12 +14,13 @@ gollm is a simple tool that connects your terminal to powerful AI models like Op
 
 Use the `-i` flag for multi-turn conversations with a single model:
 
-- `gollm -i` - Interactive chat (auto-selects provider: Cerebras > Claude > ChatGPT > Gemini > Perplexity)
+- `gollm -i` - Interactive chat (auto-selects provider: Cerebras > Claude > ChatGPT > Gemini > Perplexity > DeepSeek)
 - `gollm -i -c` - Interactive chat with ChatGPT
 - `gollm -i -g` - Interactive chat with Gemini
 - `gollm -i -f` - Interactive chat with Cerebras
 - `gollm -i -s` - Interactive chat with Claude
 - `gollm -i -p` - Interactive chat with Perplexity
+- `gollm -i -d` - Interactive chat with DeepSeek
 - `gollm -i -x -c` - Interactive chat with ChatGPT, bypassing LLM Proxy
 
 ![Interactive mode screenshot](./doc/gollm_interactive_screen.png)
@@ -142,6 +143,7 @@ model:
 -f	use Cerebras
 -p	use Perplexity
 -s	use Claude (Sonnet)
+-d	use DeepSeek
 
 API keys should be set using the environment variables below:
 
@@ -160,6 +162,9 @@ export CEREBRAS_API_KEY="your Cerebras API key here"
 # For Claude
 export ANTHROPIC_API_KEY="your Anthropic API key here"
 
+# For DeepSeek
+export DEEPSEEK_API_KEY="your DeepSeek API key here"
+
 # For LLM Proxy (proxy enabled automatically when set, -x to bypass)
 export LLM_PROXY_URL="http://localhost:8000/v1"
 
@@ -169,6 +174,7 @@ Setup:
 - You already have GEMINI_API_KEY set
 - You already have CEREBRAS_API_KEY set
 - You already have ANTHROPIC_API_KEY set
+- You already have DEEPSEEK_API_KEY set
 - You already have LLM_PROXY_URL set
 - You are connected to the internet
 - We're ready to rumble :)
@@ -179,6 +185,7 @@ Default models:
 - Gemini: models/gemini-3.1-pro-preview
 - Cerebras: gpt-oss-120b
 - Claude: claude-sonnet-4-6
+- DeepSeek: deepseek-v4-pro
 ```
 
 ## Logging

@@ -22,12 +22,14 @@ var DefaultModels = struct {
 	ChatGPT    shared.ChatModel
 	Cerebras   string
 	Claude     string
+	Deepseek   string
 }{
 	Perplexity: "sonar-pro",
 	Gemini:     "models/gemini-3.1-pro-preview",
 	ChatGPT:    "gpt-5.4",
 	Cerebras:   cerebrasModel,
 	Claude:     "claude-sonnet-4-6",
+	Deepseek:   "deepseek-v4-pro",
 }
 
 // AvailableModels lists models available for each provider in interactive mode
@@ -37,6 +39,7 @@ var AvailableModels = struct {
 	Gemini     []string
 	Cerebras   []string
 	Perplexity []string
+	Deepseek   []string
 }{
 	Claude: []string{
 		"claude-sonnet-4-6",
@@ -72,5 +75,9 @@ var AvailableModels = struct {
 		"sonar",
 		"sonar-reasoning-pro",
 		"sonar-reasoning",
+	},
+	Deepseek: []string{
+		"deepseek-v4-pro",
+		"deepseek-v4-flash",
 	},
 }

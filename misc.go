@@ -116,13 +116,13 @@ func isFlag(s string, arg string) bool {
 func handleOpts(argv []string, argc int) (optionsStruct, error) {
 	var opts optionsStruct
 
-	opts.useGemini, opts.usePerplexity, opts.useChatGPT, opts.useCerebras, opts.useClaude = false, false, false, false, false
+	opts.useGemini, opts.usePerplexity, opts.useChatGPT, opts.useCerebras, opts.useClaude, opts.useDeepseek = false, false, false, false, false, false
 	opts.logToJsonl = false
 	opts.readLog = false
 
 	// utility function for clarity (-x is a bypass flag, not a model)
 	anyModelsSpecified := func(opt optionsStruct) bool {
-		return opts.useChatGPT || opts.useGemini || opts.usePerplexity || opts.useCerebras || opts.useClaude
+		return opts.useChatGPT || opts.useGemini || opts.usePerplexity || opts.useCerebras || opts.useClaude || opts.useDeepseek
 	}
 
 	// loop through each arg
@@ -207,6 +207,10 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 			opts.useClaude = true
 		}
 
+		if isFlag(each, "-d") {
+			opts.useDeepseek = true
+		}
+
 		if isFlag(each, "-x") {
 			opts.bypassLLMProxy = true
 		}
@@ -249,6 +253,9 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 		if opts.useClaude {
 			modelCount++
 		}
+		if opts.useDeepseek {
+			modelCount++
+		}
 		if modelCount == 0 {
 			// Default to first preferred provider with an API key
 			preferred := GetPreferredProvider()
@@ -263,6 +270,8 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 				opts.useGemini = true
 			case ProviderPerplexity:
 				opts.usePerplexity = true
+			case ProviderDeepseek:
+				opts.useDeepseek = true
 			}
 		} else if modelCount > 1 {
 			return opts, fmt.Errorf("interactive mode (-i) requires exactly one model, got %d", modelCount)
@@ -301,7 +310,7 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 		// and we have not set readLog or interactive mode
 		if !opts.readLog && !opts.interactive {
 			// then use all models
-			opts.useChatGPT, opts.useGemini, opts.usePerplexity, opts.useCerebras, opts.useClaude = true, true, true, true, true
+			opts.useChatGPT, opts.useGemini, opts.usePerplexity, opts.useCerebras, opts.useClaude, opts.useDeepseek = true, true, true, true, true, true
 		}
 	}
 
