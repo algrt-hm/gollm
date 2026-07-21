@@ -7,102 +7,6 @@ import (
 	"strings"
 )
 
-func checkCarriageReturns() bool {
-	// read all the .go files in this directory
-	// check for ^M
-	// if found print the filename
-	// if any are found return true
-	// if not are found return false
-
-	files, err := os.ReadDir(".")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading directory: %v\n", err)
-		return false
-	}
-
-	foundCarriageReturns := false
-
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-
-		filename := file.Name()
-		if !strings.HasSuffix(filename, ".go") {
-			continue
-		}
-
-		data, err := os.ReadFile(filename)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", filename, err)
-			continue
-		}
-
-		if strings.Contains(string(data), "\r") {
-			fmt.Printf("%s: has carriage returns\n", filename)
-			foundCarriageReturns = true
-		}
-	}
-
-	return foundCarriageReturns
-}
-
-func getReadme() []string {
-	data, err := os.ReadFile("README.md")
-	if err != nil {
-		return []string{}
-	}
-	return strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
-}
-
-func filletHelp(lines []string) []string {
-	var result []string
-	inCodeBlock := false
-	capturing := false // only capture content from plain ``` blocks
-	var currentBlock []string
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		// Check if line starts with ``` to handle code blocks
-		if strings.HasPrefix(trimmed, "```") {
-			if inCodeBlock {
-				// End of code block, add to result if capturing and not empty
-				if capturing && len(currentBlock) > 0 {
-					result = append(result, strings.Join(currentBlock, "\n"))
-					currentBlock = []string{}
-				}
-				inCodeBlock = false
-				capturing = false
-			} else {
-				inCodeBlock = true
-				if trimmed == "```" {
-					// Plain ``` block (no language specifier) - capture it
-					capturing = true
-					currentBlock = []string{}
-				}
-			}
-		} else if capturing {
-			// Inside a code block, add line to current block
-			currentBlock = append(currentBlock, line)
-		}
-	}
-
-	// Add the last block if it wasn't closed
-	if inCodeBlock && len(currentBlock) > 0 {
-		result = append(result, strings.Join(currentBlock, "\n"))
-	}
-
-	// Filter to only include multi-line code blocks
-	var filteredResult []string
-	for _, block := range result {
-		if strings.Contains(block, "\n") {
-			filteredResult = append(filteredResult, block)
-		}
-	}
-
-	return filteredResult
-}
-
 func isFlag(s string, arg string) bool {
 	// note this may only work on ascii input
 
@@ -122,7 +26,7 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 
 	// utility function for clarity (-x is a bypass flag, not a model)
 	anyModelsSpecified := func(opt optionsStruct) bool {
-		return opts.useChatGPT || opts.useGemini || opts.usePerplexity || opts.useCerebras || opts.useClaude || opts.useDeepseek
+		return opt.useChatGPT || opt.useGemini || opt.usePerplexity || opt.useCerebras || opt.useClaude || opt.useDeepseek
 	}
 
 	// loop through each arg
@@ -279,28 +183,25 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 	}
 
 	// Functionality for including the prompt as an argument
-	// If we specify a model OR no models are specified
-	if anyModelsSpecified(opts) || !anyModelsSpecified(opts) {
-		// and we have not set readLog
-		if !opts.readLog {
-			// take the last arg
-			// and see if there is the flag character "-" in it
-			// if there is not, we assume a prompt
-			lastArg := argv[argc-1]
-			lastArgContainsDash := strings.Contains(lastArg, "-")
+	// (unless we have set readLog)
+	if !opts.readLog {
+		// take the last arg
+		// and see if there is the flag character "-" in it
+		// if there is not, we assume a prompt
+		lastArg := argv[argc-1]
+		lastArgContainsDash := strings.Contains(lastArg, "-")
 
-			if !lastArgContainsDash {
+		if !lastArgContainsDash {
+			opts.promptText = lastArg
+		} else {
+			// impliedly there is a dash
+			// the last arg may or may not be a prompt
+			// let's see if the first rune is a dash
+			lastArgAsRunes := []rune(lastArg)
+
+			// if it's not, we can assume it's a prompt
+			if len(lastArgAsRunes) > 0 && lastArgAsRunes[0] != '-' {
 				opts.promptText = lastArg
-			} else {
-				// impliedly there is a dash
-				// the last arg may or may not be a prompt
-				// let's see if the first rune is a dash
-				lastArgAsRunes := []rune(lastArg)
-
-				// if it's not, we can assume it's a prompt
-				if len(lastArgAsRunes) > 0 && lastArgAsRunes[0] != '-' {
-					opts.promptText = lastArg
-				}
 			}
 		}
 	}
@@ -309,7 +210,8 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 	if !anyModelsSpecified(opts) {
 		// and we have not set readLog or interactive mode
 		if !opts.readLog && !opts.interactive {
-			// then use all models
+			// then use all models; providers without API keys are skipped later in callModels
+			opts.modelsImplied = true
 			opts.useChatGPT, opts.useGemini, opts.usePerplexity, opts.useCerebras, opts.useClaude, opts.useDeepseek = true, true, true, true, true, true
 		}
 	}

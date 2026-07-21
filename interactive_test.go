@@ -59,9 +59,12 @@ func TestSaveConversation(t *testing.T) {
 
 	t.Run("saves_with_full_path", func(t *testing.T) {
 		filename := filepath.Join(tmpDir, "test_conversation.md")
-		err := saveConversation(filename, history, ProviderChatGPT, "gpt-4")
+		savedPath, err := saveConversation(filename, history, ProviderChatGPT, "gpt-4")
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
+		}
+		if savedPath != filename {
+			t.Errorf("Expected saved path %q, got %q", filename, savedPath)
 		}
 
 		// Check file exists
@@ -81,13 +84,16 @@ func TestSaveConversation(t *testing.T) {
 
 	t.Run("adds_md_extension_if_missing", func(t *testing.T) {
 		filename := filepath.Join(tmpDir, "no_extension")
-		err := saveConversation(filename, history, ProviderChatGPT, "gpt-4")
+		savedPath, err := saveConversation(filename, history, ProviderChatGPT, "gpt-4")
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
 		}
 
 		// Check file with .md extension exists
 		expectedPath := filename + ".md"
+		if savedPath != expectedPath {
+			t.Errorf("Expected saved path %q, got %q", expectedPath, savedPath)
+		}
 		if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
 			t.Error("Expected file with .md extension to be created")
 		}
@@ -95,9 +101,12 @@ func TestSaveConversation(t *testing.T) {
 
 	t.Run("does_not_double_md_extension", func(t *testing.T) {
 		filename := filepath.Join(tmpDir, "already_has.md")
-		err := saveConversation(filename, history, ProviderChatGPT, "gpt-4")
+		savedPath, err := saveConversation(filename, history, ProviderChatGPT, "gpt-4")
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
+		}
+		if savedPath != filename {
+			t.Errorf("Expected saved path %q, got %q", filename, savedPath)
 		}
 
 		// Check file exists without double extension

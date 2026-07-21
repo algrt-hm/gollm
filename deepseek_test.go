@@ -12,7 +12,10 @@ func TestDeepseekWrapper(t *testing.T) {
 	}
 	quietMode = false
 
-	output := DeepseekWrapper("Mock prompt", true, false, false)
+	output, err := DeepseekWrapper("Mock prompt", true, false, false)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
 	if !strings.Contains(output, "# DeepSeek") {
 		t.Errorf("Expected Deepseek header in output, got: %s", output)
 	}
@@ -25,7 +28,10 @@ func TestDeepseekWrapper(t *testing.T) {
 }
 
 func TestDeepseekWrapperQuietMode(t *testing.T) {
-	output := DeepseekWrapper("Mock prompt", true, false, true)
+	output, err := DeepseekWrapper("Mock prompt", true, false, true)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
 	if strings.Contains(output, "# DeepSeek") {
 		t.Errorf("Quiet mode should not contain header, got: %s", output)
 	}

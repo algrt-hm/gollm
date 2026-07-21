@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/openai/openai-go/v2"
 )
 
 func TestLLMProxyWrapperForProvider(t *testing.T) {
@@ -16,14 +18,20 @@ func TestLLMProxyWrapperForProvider(t *testing.T) {
 	}
 
 	t.Run("mock_response_contains_expected_content", func(t *testing.T) {
-		result := LLMProxyWrapperForProvider("ChatGPT", "Mock prompt", "openai:gpt-5.4", true, false, true)
+		result, err := LLMProxyWrapperForProvider("ChatGPT", "Mock prompt", "openai:gpt-5.4", true, false, true)
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
 		if result != "This is a mocked LLM Proxy response." {
 			t.Errorf("Expected mocked response content, got %q", result)
 		}
 	})
 
 	t.Run("mock_response_has_provider_header_in_normal_mode", func(t *testing.T) {
-		result := LLMProxyWrapperForProvider("ChatGPT", "Mock prompt", "openai:gpt-5.4", true, false, false)
+		result, err := LLMProxyWrapperForProvider("ChatGPT", "Mock prompt", "openai:gpt-5.4", true, false, false)
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
 		if !strings.Contains(result, "# ChatGPT (via proxy)") {
 			t.Errorf("Expected '# ChatGPT (via proxy)' header, got %q", result)
 		}
@@ -31,6 +39,39 @@ func TestLLMProxyWrapperForProvider(t *testing.T) {
 			t.Errorf("Expected mocked response in output, got %q", result)
 		}
 	})
+}
+
+func TestExtractCitations(t *testing.T) {
+	raw := `{"id":"x","object":"chat.completion","created":1,"model":"sonar-pro","citations":["https://go.dev/","https://example.com/"],"choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"Go was released in 2009[1]."}}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`
+	var c openai.ChatCompletion
+	if err := c.UnmarshalJSON([]byte(raw)); err != nil {
+		t.Fatalf("Failed to unmarshal fixture: %v", err)
+	}
+
+	citations := extractCitations(&c)
+	if len(citations) != 2 || citations[0] != "https://go.dev/" {
+		t.Errorf("Expected 2 citations starting with go.dev, got %v", citations)
+	}
+
+	formatted := appendCitations(c.Choices[0].Message.Content, citations)
+	if !strings.Contains(formatted, "2009[^1]") {
+		t.Errorf("Expected [1] rewritten to footnote form, got %q", formatted)
+	}
+	if !strings.Contains(formatted, "Citations:") || !strings.Contains(formatted, "1. https://go.dev/") {
+		t.Errorf("Expected citation list in output, got %q", formatted)
+	}
+
+	// No citations field -> nil, and content passes through unchanged
+	var plain openai.ChatCompletion
+	if err := plain.UnmarshalJSON([]byte(`{"id":"y","object":"chat.completion","created":1,"model":"gpt-5.5","choices":[]}`)); err != nil {
+		t.Fatalf("Failed to unmarshal fixture: %v", err)
+	}
+	if got := extractCitations(&plain); got != nil {
+		t.Errorf("Expected nil citations, got %v", got)
+	}
+	if got := appendCitations("hello", nil); got != "hello" {
+		t.Errorf("Expected content unchanged with no citations, got %q", got)
+	}
 }
 
 func TestGetLLMProxyURL(t *testing.T) {

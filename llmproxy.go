@@ -2,14 +2,15 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
+	"github.com/openai/openai-go/v2"
+	"github.com/openai/openai-go/v2/option"
 )
 
 const llmProxyURLEnvVar = "LLM_PROXY_URL"
@@ -87,9 +88,9 @@ func LLMProxyGenChatCompletionMock() *openai.ChatCompletion {
 	}
 }
 
-func LLMProxyLowerWrapper(promptText string, mock bool, model string) *openai.ChatCompletion {
+func LLMProxyLowerWrapper(promptText string, mock bool, model string) (*openai.ChatCompletion, error) {
 	if mock {
-		return LLMProxyGenChatCompletionMock()
+		return LLMProxyGenChatCompletionMock(), nil
 	}
 
 	client := openai.NewClient(option.WithAPIKey("not-needed"), option.WithBaseURL(getLLMProxyURL()))
@@ -101,14 +102,29 @@ func LLMProxyLowerWrapper(promptText string, mock bool, model string) *openai.Ch
 	})
 
 	if err != nil {
-		Fatalf("Some error %s", err)
+		return nil, fmt.Errorf("API error: %w", err)
 	}
 
-	return chatCompletion
+	return chatCompletion, nil
+}
+
+// extractCitations pulls Perplexity's citations field out of an OpenAI-compatible
+// response; the SDK has no field for it but keeps unknown fields in JSON.ExtraFields
+func extractCitations(c *openai.ChatCompletion) []string {
+	raw := c.JSON.ExtraFields["citations"].Raw()
+	if raw == "" || raw == "null" {
+		return nil
+	}
+
+	var citations []string
+	if err := json.Unmarshal([]byte(raw), &citations); err != nil {
+		return nil
+	}
+	return citations
 }
 
 // llmproxyChat handles interactive chat with conversation history
-func llmproxyChat(history []ChatMessage, userInput string, model string) (string, error) {
+func llmproxyChat(history []ChatMessage, userInput string, model string, provider Provider, showCitations bool) (string, error) {
 	client := openai.NewClient(option.WithAPIKey("not-needed"), option.WithBaseURL(getLLMProxyURL()))
 
 	// Build messages array from history
@@ -136,19 +152,34 @@ func llmproxyChat(history []ChatMessage, userInput string, model string) (string
 		return "", fmt.Errorf("no response from model")
 	}
 
-	return chatCompletion.Choices[0].Message.Content, nil
+	content := chatCompletion.Choices[0].Message.Content
+	if provider == ProviderPerplexity && showCitations {
+		content = appendCitations(content, extractCitations(chatCompletion))
+	}
+
+	return content, nil
 }
 
 // LLMProxyWrapperForProvider wraps a call through the proxy for a specific provider
-func LLMProxyWrapperForProvider(providerName string, promptText string, model string, mock bool, logToJsonl bool, quietMode bool) string {
+func LLMProxyWrapperForProvider(providerName string, promptText string, model string, mock bool, logToJsonl bool, quietMode bool) (string, error) {
 	fromTime := time.Now()
 
-	c := LLMProxyLowerWrapper(promptText, mock, model)
+	c, err := LLMProxyLowerWrapper(promptText, mock, model)
+	if err != nil {
+		return "", err
+	}
 
 	duration := time.Since(fromTime)
 
 	if len(c.Choices) == 0 {
-		Fatalf("%s (via proxy) returned no choices", providerName)
+		return "", fmt.Errorf("returned no choices")
+	}
+
+	// Like the direct Perplexity path, append citations to the displayed output
+	// (the log entry below keeps the raw content, matching PerplexityWrapper)
+	content := c.Choices[0].Message.Content
+	if providerName == "Perplexity" {
+		content = appendCitations(content, extractCitations(c))
 	}
 
 	// Log successful model call only if logging is enabled
@@ -169,12 +200,12 @@ func LLMProxyWrapperForProvider(providerName string, promptText string, model st
 	}
 
 	if quietMode {
-		return c.Choices[0].Message.Content
+		return content, nil
 	}
 
 	fmtStr := "Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds"
 
 	status := fmt.Sprintf(fmtStr, c.Model, c.Usage.TotalTokens, c.Choices[0].FinishReason, duration.Seconds())
 
-	return fmt.Sprintf("# %s (via proxy)\n\n%s\n\n%s\n\n", providerName, status, c.Choices[0].Message.Content)
+	return fmt.Sprintf("# %s (via proxy)\n\n%s\n\n%s\n\n", providerName, status, content), nil
 }

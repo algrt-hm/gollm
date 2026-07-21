@@ -6,7 +6,6 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.14.0
 	github.com/charmbracelet/glamour v0.10.0
 	github.com/google/generative-ai-go v0.16.0
-	github.com/openai/openai-go v1.12.0
 	github.com/openai/openai-go/v2 v2.1.0
 	golang.org/x/term v0.44.0
 	google.golang.org/api v0.253.0

@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
+	"github.com/openai/openai-go/v2"
+	"github.com/openai/openai-go/v2/option"
 )
 
 func CerebrasGenChatCompletionMock() *openai.ChatCompletion {
@@ -34,9 +34,9 @@ func CerebrasGenChatCompletionMock() *openai.ChatCompletion {
 	}
 }
 
-func CerebrasLowerWrapper(promptText string, mock bool) *openai.ChatCompletion {
+func CerebrasLowerWrapper(promptText string, mock bool) (*openai.ChatCompletion, error) {
 	if mock {
-		return CerebrasGenChatCompletionMock()
+		return CerebrasGenChatCompletionMock(), nil
 	}
 
 	/*
@@ -61,30 +61,10 @@ func CerebrasLowerWrapper(promptText string, mock bool) *openai.ChatCompletion {
 	})
 
 	if err != nil {
-		Fatalf("Some error %s", err)
+		return nil, fmt.Errorf("API error: %w", err)
 	}
 
-	return chatCompletion
-}
-
-func CerebrasMiddleWrapper(promptText string, mock bool) string {
-	fromTime := time.Now()
-
-	c := CerebrasLowerWrapper(promptText, mock)
-
-	duration := time.Since(fromTime)
-
-	if len(c.Choices) == 0 {
-		Fatalf("Cerebras response contained no choices")
-	}
-
-	// Model: sonar-pro, 135 tokens used, finished due to: length, duration: 0.000 seconds
-	fmtStr := "Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds"
-
-	status := fmt.Sprintf(fmtStr, c.Model, c.Usage.TotalTokens, c.Choices[0].FinishReason, duration.Seconds())
-
-	// TODO: need to loop through choices per the Gemini example in case we get more than one back
-	return fmt.Sprintf("\n%s\n\n%s", status, c.Choices[0].Message.Content)
+	return chatCompletion, nil
 }
 
 // cerebrasChat handles interactive chat with conversation history
@@ -120,15 +100,18 @@ func cerebrasChat(history []ChatMessage, userInput string, model string) (string
 }
 
 // CerebrasWrapper is the top-level function for Cerebras
-func CerebrasWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {
+func CerebrasWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) (string, error) {
 	fromTime := time.Now()
 
-	c := CerebrasLowerWrapper(promptText, mock)
+	c, err := CerebrasLowerWrapper(promptText, mock)
+	if err != nil {
+		return "", err
+	}
 
 	duration := time.Since(fromTime)
 
 	if len(c.Choices) == 0 {
-		Fatalf("Cerebras response contained no choices")
+		return "", fmt.Errorf("response contained no choices")
 	}
 
 	// Log successful model call only if logging is enabled
@@ -149,7 +132,7 @@ func CerebrasWrapper(promptText string, mock bool, logToJsonl bool, quietMode bo
 	}
 
 	if quietMode {
-		return c.Choices[0].Message.Content
+		return c.Choices[0].Message.Content, nil
 	}
 
 	// Model: sonar-pro, 135 tokens used, finished due to: length, duration: 0.000 seconds
@@ -158,5 +141,5 @@ func CerebrasWrapper(promptText string, mock bool, logToJsonl bool, quietMode bo
 	status := fmt.Sprintf(fmtStr, c.Model, c.Usage.TotalTokens, c.Choices[0].FinishReason, duration.Seconds())
 
 	// TODO: need to loop through choices per the Gemini example in case we get more than one back
-	return fmt.Sprintf("# Cerebras\n\n%s\n\n%s\n\n", status, c.Choices[0].Message.Content)
+	return fmt.Sprintf("# Cerebras\n\n%s\n\n%s\n\n", status, c.Choices[0].Message.Content), nil
 }

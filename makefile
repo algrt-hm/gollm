@@ -34,9 +34,6 @@ test:
 	go test
 
 fmt:
-	go fmt ./*go
-
-fmt-fix-line-endings:
 	gofmt -w .
 
 release:

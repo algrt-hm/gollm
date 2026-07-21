@@ -25,7 +25,10 @@ func TestClaudeWrapper(t *testing.T) {
 	}
 	quietMode = false
 
-	output := ClaudeWrapper("Mock prompt", true, false, false)
+	output, err := ClaudeWrapper("Mock prompt", true, false, false)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
 	if !strings.Contains(output, "# Claude") {
 		t.Errorf("Expected Claude header in output, got: %s", output)
 	}
@@ -38,7 +41,10 @@ func TestClaudeWrapper(t *testing.T) {
 }
 
 func TestClaudeWrapperQuietMode(t *testing.T) {
-	output := ClaudeWrapper("Mock prompt", true, false, true)
+	output, err := ClaudeWrapper("Mock prompt", true, false, true)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
 	if strings.Contains(output, "# Claude") {
 		t.Errorf("Quiet mode should not contain header, got: %s", output)
 	}

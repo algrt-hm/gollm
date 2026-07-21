@@ -12,7 +12,10 @@ func TestCerebrasWrapper(t *testing.T) {
 	}
 	quietMode = false
 
-	output := CerebrasWrapper("Mock prompt", true, false, false)
+	output, err := CerebrasWrapper("Mock prompt", true, false, false)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
 	if !strings.Contains(output, "# Cerebras") {
 		t.Errorf("Expected Cerebras header in output, got: %s", output)
 	}
@@ -25,7 +28,10 @@ func TestCerebrasWrapper(t *testing.T) {
 }
 
 func TestCerebrasWrapperQuietMode(t *testing.T) {
-	output := CerebrasWrapper("Mock prompt", true, false, true)
+	output, err := CerebrasWrapper("Mock prompt", true, false, true)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
 	if strings.Contains(output, "# Cerebras") {
 		t.Errorf("Quiet mode should not contain header, got: %s", output)
 	}

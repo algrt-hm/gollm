@@ -8,6 +8,98 @@ import (
 	"testing"
 )
 
+// checkCarriageReturns reads all the .go files in this directory and reports
+// whether any contain ^M (test-support only, so it lives in the test file)
+func checkCarriageReturns() bool {
+	files, err := os.ReadDir(".")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading directory: %v\n", err)
+		return false
+	}
+
+	foundCarriageReturns := false
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		filename := file.Name()
+		if !strings.HasSuffix(filename, ".go") {
+			continue
+		}
+
+		data, err := os.ReadFile(filename)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", filename, err)
+			continue
+		}
+
+		if strings.Contains(string(data), "\r") {
+			fmt.Printf("%s: has carriage returns\n", filename)
+			foundCarriageReturns = true
+		}
+	}
+
+	return foundCarriageReturns
+}
+
+func getReadme() []string {
+	data, err := os.ReadFile("README.md")
+	if err != nil {
+		return []string{}
+	}
+	return strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
+}
+
+func filletHelp(lines []string) []string {
+	var result []string
+	inCodeBlock := false
+	capturing := false // only capture content from plain ``` blocks
+	var currentBlock []string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		// Check if line starts with ``` to handle code blocks
+		if strings.HasPrefix(trimmed, "```") {
+			if inCodeBlock {
+				// End of code block, add to result if capturing and not empty
+				if capturing && len(currentBlock) > 0 {
+					result = append(result, strings.Join(currentBlock, "\n"))
+					currentBlock = []string{}
+				}
+				inCodeBlock = false
+				capturing = false
+			} else {
+				inCodeBlock = true
+				if trimmed == "```" {
+					// Plain ``` block (no language specifier) - capture it
+					capturing = true
+					currentBlock = []string{}
+				}
+			}
+		} else if capturing {
+			// Inside a code block, add line to current block
+			currentBlock = append(currentBlock, line)
+		}
+	}
+
+	// Add the last block if it wasn't closed
+	if inCodeBlock && len(currentBlock) > 0 {
+		result = append(result, strings.Join(currentBlock, "\n"))
+	}
+
+	// Filter to only include multi-line code blocks
+	var filteredResult []string
+	for _, block := range result {
+		if strings.Contains(block, "\n") {
+			filteredResult = append(filteredResult, block)
+		}
+	}
+
+	return filteredResult
+}
+
 func TestFilletHelp(t *testing.T) {
 	// Here we essentially test that the README.md example of gollm -h updated and correct
 	// Set all API keys so the dynamic "Setup:" section matches the README
@@ -45,7 +137,7 @@ func TestFilletHelp(t *testing.T) {
 	}
 
 	helpFromReadme := ret[0]
-	helpFromCode := PrintUsage(true, getLogPath())
+	helpFromCode := PrintUsage(true, logPathToPrint)
 
 	// remove leading and trailing whitespace
 	helpFromReadme = strings.TrimSpace(helpFromReadme)
@@ -87,7 +179,7 @@ func TestFilletHelp(t *testing.T) {
 }
 
 func TestPrintUsageOfflineStatusLine(t *testing.T) {
-	usage := PrintUsage(false, getLogPath())
+	usage := PrintUsage(false, logPathToPrint)
 	if !strings.Contains(usage, "- You are offline (or internet connectivity could not be verified)") {
 		t.Errorf("Expected offline status line in usage output, got:\n%s", usage)
 	}
@@ -116,6 +208,7 @@ func TestHandleOpts(t *testing.T) {
 			useCerebras:   true,
 			useClaude:     true,
 			useDeepseek:   true,
+			modelsImplied: true,
 			logToJsonl:    false,
 			quietMode:     false,
 
@@ -277,6 +370,7 @@ func TestHandleOpts(t *testing.T) {
 			useCerebras:   true,
 			useClaude:     true,
 			useDeepseek:   true,
+			modelsImplied: true,
 			logToJsonl:    false,
 			quietMode:     false,
 

@@ -12,7 +12,10 @@ func TestGeminiWrapper(t *testing.T) {
 	}
 	quietMode = false
 
-	output := GeminiWrapper("Mock prompt", true, false, false)
+	output, err := GeminiWrapper("Mock prompt", true, false, false)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
 	if !strings.Contains(output, "# Gemini") {
 		t.Errorf("Expected Gemini header in output, got: %s", output)
 	}
@@ -22,7 +25,10 @@ func TestGeminiWrapper(t *testing.T) {
 }
 
 func TestGeminiWrapperQuietMode(t *testing.T) {
-	output := GeminiWrapper("Mock prompt", true, false, true)
+	output, err := GeminiWrapper("Mock prompt", true, false, true)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
 	if strings.Contains(output, "# Gemini") {
 		t.Errorf("Quiet mode should not contain header, got: %s", output)
 	}

@@ -78,9 +78,9 @@ func ChatGPTGenChatCompletionMock() *openai.ChatCompletion {
 	}
 }
 
-func ChatGPTLowerWrapper(promptText string, mock bool) *openai.ChatCompletion {
+func ChatGPTLowerWrapper(promptText string, mock bool) (*openai.ChatCompletion, error) {
 	if mock {
-		return ChatGPTGenChatCompletionMock()
+		return ChatGPTGenChatCompletionMock(), nil
 	}
 
 	client := openai.NewClient(option.WithAPIKey(GetChatGPTAPIKeyOrBail()))
@@ -92,48 +92,10 @@ func ChatGPTLowerWrapper(promptText string, mock bool) *openai.ChatCompletion {
 	})
 
 	if err != nil {
-		Fatalf("Some error %s", err)
+		return nil, fmt.Errorf("API error: %w", err)
 	}
 
-	return chatCompletion
-}
-
-func ChatGPTMiddleWrapper(promptText string, mock bool) string {
-	fromTime := time.Now()
-
-	c := ChatGPTLowerWrapper(promptText, mock)
-
-	duration := time.Since(fromTime)
-
-	// Use the finish reason from the first choice as representative
-	finishReason := "N/A"
-	if len(c.Choices) > 0 {
-		finishReason = string(c.Choices[0].FinishReason) // Convert FinishReason type to string
-	}
-
-	var contentBuilder strings.Builder
-	firstFinishReason := finishReason // Store the first reason for comparison
-	for i, choice := range c.Choices {
-		if i > 0 {
-			contentBuilder.WriteString("\n---\n") // Add separator for multiple choices
-		}
-		contentBuilder.WriteString(choice.Message.Content)
-
-		// Check if finish reason is different from the first one
-		currentFinishReason := string(choice.FinishReason)
-		if currentFinishReason != firstFinishReason {
-			// Append if different and not already added (to avoid duplicates if many differ)
-			if !strings.Contains(finishReason, currentFinishReason) {
-				finishReason += ", " + currentFinishReason
-			}
-		}
-	}
-
-	// Update status string *after* the loop in case finishReason was modified
-	fmtStr := "Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds"
-	status := fmt.Sprintf(fmtStr, c.Model, c.Usage.TotalTokens, finishReason, duration.Seconds())
-
-	return fmt.Sprintf("\n%s\n\n%s", status, contentBuilder.String())
+	return chatCompletion, nil
 }
 
 // chatGPTChat handles interactive chat with conversation history
@@ -168,10 +130,13 @@ func chatGPTChat(history []ChatMessage, userInput string, model string) (string,
 	return chatCompletion.Choices[0].Message.Content, nil
 }
 
-func ChatGPTWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {
+func ChatGPTWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) (string, error) {
 	fromTime := time.Now()
 
-	c := ChatGPTLowerWrapper(promptText, mock)
+	c, err := ChatGPTLowerWrapper(promptText, mock)
+	if err != nil {
+		return "", err
+	}
 
 	duration := time.Since(fromTime)
 
@@ -217,12 +182,12 @@ func ChatGPTWrapper(promptText string, mock bool, logToJsonl bool, quietMode boo
 	}
 
 	if quietMode {
-		return contentBuilder.String()
+		return contentBuilder.String(), nil
 	}
 
 	// Update status string *after* the loop in case finishReason was modified
 	fmtStr := "Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds"
 	status := fmt.Sprintf(fmtStr, c.Model, c.Usage.TotalTokens, finishReason, duration.Seconds())
 
-	return fmt.Sprintf("# ChatGPT\n\n%s\n\n%s\n\n", status, contentBuilder.String())
+	return fmt.Sprintf("# ChatGPT\n\n%s\n\n%s\n\n", status, contentBuilder.String()), nil
 }

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/term"
 )
@@ -195,10 +196,18 @@ func (r *MultilineReader) ReadMultiline() (string, error) {
 	restore := func() { term.Restore(r.fd, oldState) }
 	defer restore()
 
+	// done lets the signal watcher exit when this call returns,
+	// otherwise we'd leak one goroutine per prompt
+	done := make(chan struct{})
+	defer close(done)
+
 	go func() {
-		<-sigCh
-		restore()
-		os.Exit(0)
+		select {
+		case <-sigCh:
+			restore()
+			os.Exit(0)
+		case <-done:
+		}
 	}()
 
 	var buf []rune
@@ -208,10 +217,15 @@ func (r *MultilineReader) ReadMultiline() (string, error) {
 	r.histIdx = len(r.history)
 	r.saved = ""
 
-	readByte := func() byte {
+	// readByte reads a single byte; ok is false on read error/EOF so callers
+	// can abandon a partially-read sequence instead of spinning on zero bytes
+	readByte := func() (byte, bool) {
 		b := make([]byte, 1)
-		os.Stdin.Read(b)
-		return b[0]
+		n, err := os.Stdin.Read(b)
+		if err != nil || n == 0 {
+			return 0, false
+		}
+		return b[0], true
 	}
 
 	for {
@@ -225,12 +239,18 @@ func (r *MultilineReader) ReadMultiline() (string, error) {
 
 		switch {
 		case char == 0x1b: // ESC - start of escape sequence
-			next := readByte()
+			next, ok := readByte()
+			if !ok {
+				break
+			}
 			if next == '[' {
 				// CSI sequence: ESC [ <params> <final>
 				var params []byte
 				for {
-					p := readByte()
+					p, ok := readByte()
+					if !ok {
+						break
+					}
 					if p >= 0x40 && p <= 0x7E {
 						switch p {
 						case 'A': // Up - history previous
@@ -303,7 +323,10 @@ func (r *MultilineReader) ReadMultiline() (string, error) {
 				}
 			} else if next == 'O' {
 				// SS3 sequence
-				p := readByte()
+				p, ok := readByte()
+				if !ok {
+					break
+				}
 				switch p {
 				case 'H': // Home
 					start := lineStart(buf, cursor)
@@ -395,10 +418,39 @@ func (r *MultilineReader) ReadMultiline() (string, error) {
 				curLine = r.redraw(buf, cursor, curLine)
 			}
 
-		default: // Regular character
+		default: // Regular character (possibly the first byte of a multi-byte UTF-8 sequence)
+			ch := rune(char)
+			if char >= 0x80 {
+				// Number of continuation bytes expected after this lead byte
+				n := 0
+				switch {
+				case char&0xE0 == 0xC0:
+					n = 1
+				case char&0xF0 == 0xE0:
+					n = 2
+				case char&0xF8 == 0xF0:
+					n = 3
+				}
+				if n == 0 {
+					break // invalid UTF-8 lead byte, ignore
+				}
+				seq := []byte{char}
+				for i := 0; i < n; i++ {
+					cb, ok := readByte()
+					if !ok {
+						break
+					}
+					seq = append(seq, cb)
+				}
+				decoded, size := utf8.DecodeRune(seq)
+				if len(seq) != n+1 || (decoded == utf8.RuneError && size <= 1) {
+					break // incomplete or invalid sequence, ignore
+				}
+				ch = decoded
+			}
 			buf = append(buf, 0)
 			copy(buf[cursor+1:], buf[cursor:])
-			buf[cursor] = rune(char)
+			buf[cursor] = ch
 			cursor++
 			curLine = r.redraw(buf, cursor, curLine)
 		}
@@ -449,21 +501,21 @@ const (
 
 // CommandResult contains the result of processing a command
 type CommandResult struct {
-	Action       CommandAction
-	Message      string // Message to display to user
-	Error        error  // Error if Action is ActionError
-	ModelIndex   int    // For ActionSwitchModel
-	ProviderIndex int   // For ActionSwitchProvider
+	Action        CommandAction
+	Message       string // Message to display to user
+	Error         error  // Error if Action is ActionError
+	ModelIndex    int    // For ActionSwitchModel
+	ProviderIndex int    // For ActionSwitchProvider
 }
 
 // SessionState holds the current state of an interactive session
 type SessionState struct {
-	Provider       Provider
-	CurrentModel   string
-	History        []ChatMessage
-	AmnesiaMode    bool
-	ProxyMode      bool
-	ShowCitations  bool
+	Provider      Provider
+	CurrentModel  string
+	History       []ChatMessage
+	AmnesiaMode   bool
+	ProxyMode     bool
+	ShowCitations bool
 }
 
 // handleCommand processes user input and returns what action to take
@@ -694,7 +746,7 @@ func getDefaultModel(provider Provider) string {
 // When proxyMode is true, all calls route through the LLM Proxy
 func callChat(provider Provider, history []ChatMessage, userInput string, model string, proxyMode bool, showCitations bool) (string, error) {
 	if proxyMode {
-		return llmproxyChat(history, userInput, proxyModelName(provider, model))
+		return llmproxyChat(history, userInput, proxyModelName(provider, model), provider, showCitations)
 	}
 	switch provider {
 	case ProviderClaude:
@@ -738,7 +790,8 @@ func formatConversationMarkdown(history []ChatMessage, provider Provider, model 
 }
 
 // saveConversation saves the conversation history to a markdown file
-func saveConversation(filename string, history []ChatMessage, provider Provider, model string) error {
+// and returns the final path written
+func saveConversation(filename string, history []ChatMessage, provider Provider, model string) (string, error) {
 	// If no path separator, prepend $HOME
 	if !strings.Contains(filename, string(filepath.Separator)) {
 		home := getHomeDir()
@@ -753,10 +806,10 @@ func saveConversation(filename string, history []ChatMessage, provider Provider,
 	content := formatConversationMarkdown(history, provider, model)
 	err := os.WriteFile(filename, []byte(content), 0644)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return filename, nil
 }
 
 // InteractiveSession runs an interactive chat session with the selected model
@@ -822,7 +875,9 @@ func InteractiveSession(o optionsStruct) {
 
 	var history []ChatMessage
 	mlReader := NewMultilineReader()
-	amnesiaMode := true
+	// Memory (chat history sent to the model) and Perplexity citations are both
+	// on by default; /memory and /cite toggle them off
+	amnesiaMode := false
 	showCitations := true
 	// Track if we just rendered something with glamour (which adds its own trailing newline)
 	justRendered := true
@@ -944,20 +999,13 @@ func InteractiveSession(o optionsStruct) {
 				continue
 			}
 
-			err = saveConversation(filename, state.History, state.Provider, state.CurrentModel)
+			savedPath, err := saveConversation(filename, state.History, state.Provider, state.CurrentModel)
 			if err != nil {
 				RenderWithGlamourPtr(fmt.Sprintf("*Error saving conversation:* %v", err))
 				justRendered = true
 				continue
 			}
 
-			savedPath := filename
-			if !strings.Contains(filename, string(filepath.Separator)) {
-				savedPath = filepath.Join(getHomeDir(), filename)
-			}
-			if !strings.HasSuffix(strings.ToLower(savedPath), ".md") {
-				savedPath = savedPath + ".md"
-			}
 			RenderWithGlamourPtr(fmt.Sprintf("*Conversation saved to:* `%s`", savedPath))
 			justRendered = true
 			continue

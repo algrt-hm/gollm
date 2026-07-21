@@ -67,15 +67,15 @@ type PerplexityRequest struct {
 }
 
 // ParsePerplexityResponse parses a Perplexity response and returns a ModelResponse
-func ParsePerplexityResponse(result string) ModelResponse {
+func ParsePerplexityResponse(result string) (ModelResponse, error) {
 	var response PerplexityResponse
 	err := json.Unmarshal([]byte(result), &response)
 	if err != nil {
-		Fatalf("Failed to unmarshal Perplexity JSON response: %v\nResponse was: %s", err, result)
+		return ModelResponse{}, fmt.Errorf("failed to unmarshal JSON response: %w\nResponse was: %s", err, result)
 	}
 
 	if len(response.Choices) == 0 {
-		Fatalf("Perplexity response contained no choices.\nResponse was: %s", result)
+		return ModelResponse{}, fmt.Errorf("response contained no choices.\nResponse was: %s", result)
 	}
 
 	model := response.Model
@@ -90,7 +90,7 @@ func ParsePerplexityResponse(result string) ModelResponse {
 		Citations:    citations,
 		Content:      content,
 		FinishReason: finishReason,
-	}
+	}, nil
 }
 
 func FmtModelResponse(response ModelResponse, duration time.Duration, quietMode bool) string {
@@ -126,7 +126,7 @@ func FmtModelResponse(response ModelResponse, duration time.Duration, quietMode 
 }
 
 // CallPerplexityAPI calls the Perplexity API
-func CallPerplexityAPI(promptText string, mock bool) (string, time.Duration) {
+func CallPerplexityAPI(promptText string, mock bool) (string, time.Duration, error) {
 	// Start the timer
 	startTime := time.Now()
 
@@ -167,15 +167,14 @@ func CallPerplexityAPI(promptText string, mock bool) (string, time.Duration) {
       }
     }
   ]
-}`, time.Since(startTime)
+}`, time.Since(startTime), nil
 	}
 
-	perplexityApiKey := "PERPLEXITY_API_KEY"
-	key := os.Getenv(perplexityApiKey)
+	key := getPerplexityAPIKey()
 	url := "https://api.perplexity.ai/chat/completions"
 
 	requestPayload := PerplexityRequest{
-		Model: "sonar-pro",
+		Model: DefaultModels.Perplexity,
 		Messages: []Message{
 			{Role: "system", Content: "Be precise and concise."},
 			{Role: "user", Content: promptText},
@@ -198,14 +197,14 @@ func CallPerplexityAPI(promptText string, mock bool) (string, time.Duration) {
 
 	payloadBytes, err := json.Marshal(requestPayload)
 	if err != nil {
-		Fatalf("Failed to marshal request payload: %v", err)
+		return "", time.Since(startTime), fmt.Errorf("failed to marshal request payload: %w", err)
 	}
 
 	payload := bytes.NewReader(payloadBytes)
 
 	req, err := http.NewRequest("POST", url, payload)
 	if err != nil {
-		Fatalf("Failed to create Perplexity request: %v", err)
+		return "", time.Since(startTime), fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", key))
@@ -213,20 +212,20 @@ func CallPerplexityAPI(promptText string, mock bool) (string, time.Duration) {
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		Fatalf("Perplexity request failed: %v", err)
+		return "", time.Since(startTime), fmt.Errorf("request failed: %w", err)
 	}
 	defer res.Body.Close()
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		Fatalf("Failed to read Perplexity response body: %v", err)
+		return "", time.Since(startTime), fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	if res.StatusCode != 200 {
-		Fatalf("Perplexity API error (status %d): %s", res.StatusCode, string(body))
+		return "", time.Since(startTime), fmt.Errorf("API error (status %d): %s", res.StatusCode, string(body))
 	}
 
-	return string(body), time.Since(startTime)
+	return string(body), time.Since(startTime), nil
 }
 
 // perplexityChat handles interactive chat with conversation history
@@ -305,28 +304,46 @@ func perplexityChat(history []ChatMessage, userInput string, model string, showC
 	content := response.Choices[0].Message.Content
 
 	// Format citations like non-interactive mode (FmtModelResponse)
-	if showCitations && len(response.Citations) > 0 {
-		re := regexp.MustCompile(`\[(\d+)\]`)
-		content = re.ReplaceAllString(content, "[^$1]")
-
-		content += "\n\n"
-		for idx, citation := range response.Citations {
-			content += fmt.Sprintf("[^%d]: %s\n", idx+1, citation)
-		}
-
-		content += "\n\nCitations:\n\n"
-		for idx, citation := range response.Citations {
-			content += fmt.Sprintf("%d. %s\n", idx+1, citation)
-		}
+	if showCitations {
+		content = appendCitations(content, response.Citations)
 	}
 
 	return content, nil
 }
 
-func PerplexityWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {
-	result, duration := CallPerplexityAPI(promptText, mock)
+// appendCitations rewrites [n] markers as markdown footnotes and appends the
+// citation list, matching the non-interactive output format (FmtModelResponse)
+func appendCitations(content string, citations []string) string {
+	if len(citations) == 0 {
+		return content
+	}
 
-	modelResponse := ParsePerplexityResponse(result)
+	re := regexp.MustCompile(`\[(\d+)\]`)
+	content = re.ReplaceAllString(content, "[^$1]")
+
+	content += "\n\n"
+	for idx, citation := range citations {
+		content += fmt.Sprintf("[^%d]: %s\n", idx+1, citation)
+	}
+
+	content += "\n\nCitations:\n\n"
+	for idx, citation := range citations {
+		content += fmt.Sprintf("%d. %s\n", idx+1, citation)
+	}
+
+	return content
+}
+
+func PerplexityWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) (string, error) {
+	result, duration, err := CallPerplexityAPI(promptText, mock)
+	if err != nil {
+		return "", err
+	}
+
+	modelResponse, err := ParsePerplexityResponse(result)
+	if err != nil {
+		return "", err
+	}
 
 	// Log successful model call only if logging is enabled
 	if logToJsonl {
@@ -345,5 +362,5 @@ func PerplexityWrapper(promptText string, mock bool, logToJsonl bool, quietMode 
 		}
 	}
 
-	return FmtModelResponse(modelResponse, duration, quietMode)
+	return FmtModelResponse(modelResponse, duration, quietMode), nil
 }

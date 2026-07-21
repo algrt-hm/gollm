@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
+	"github.com/openai/openai-go/v2"
+	"github.com/openai/openai-go/v2/option"
 )
 
 // DeepSeek API uses an OpenAI-compatible format.
@@ -38,9 +38,9 @@ func DeepseekGenChatCompletionMock() *openai.ChatCompletion {
 	}
 }
 
-func DeepseekLowerWrapper(promptText string, mock bool) *openai.ChatCompletion {
+func DeepseekLowerWrapper(promptText string, mock bool) (*openai.ChatCompletion, error) {
 	if mock {
-		return DeepseekGenChatCompletionMock()
+		return DeepseekGenChatCompletionMock(), nil
 	}
 
 	client := openai.NewClient(option.WithAPIKey(GetDeepseekAPIKeyOrBail()), option.WithBaseURL(deepseekBaseURL))
@@ -52,10 +52,10 @@ func DeepseekLowerWrapper(promptText string, mock bool) *openai.ChatCompletion {
 	})
 
 	if err != nil {
-		Fatalf("Some error %s", err)
+		return nil, fmt.Errorf("API error: %w", err)
 	}
 
-	return chatCompletion
+	return chatCompletion, nil
 }
 
 // deepseekChat handles interactive chat with conversation history
@@ -89,15 +89,18 @@ func deepseekChat(history []ChatMessage, userInput string, model string) (string
 }
 
 // DeepseekWrapper is the top-level function for Deepseek
-func DeepseekWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {
+func DeepseekWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) (string, error) {
 	fromTime := time.Now()
 
-	c := DeepseekLowerWrapper(promptText, mock)
+	c, err := DeepseekLowerWrapper(promptText, mock)
+	if err != nil {
+		return "", err
+	}
 
 	duration := time.Since(fromTime)
 
 	if len(c.Choices) == 0 {
-		Fatalf("DeepSeek response contained no choices")
+		return "", fmt.Errorf("response contained no choices")
 	}
 
 	if logToJsonl {
@@ -116,12 +119,12 @@ func DeepseekWrapper(promptText string, mock bool, logToJsonl bool, quietMode bo
 	}
 
 	if quietMode {
-		return c.Choices[0].Message.Content
+		return c.Choices[0].Message.Content, nil
 	}
 
 	fmtStr := "Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds"
 
 	status := fmt.Sprintf(fmtStr, c.Model, c.Usage.TotalTokens, c.Choices[0].FinishReason, duration.Seconds())
 
-	return fmt.Sprintf("# DeepSeek\n\n%s\n\n%s\n\n", status, c.Choices[0].Message.Content)
+	return fmt.Sprintf("# DeepSeek\n\n%s\n\n%s\n\n", status, c.Choices[0].Message.Content), nil
 }

@@ -16,7 +16,10 @@ func TestPerplexityWrapper(t *testing.T) {
 	}
 	quietMode = false
 
-	output := PerplexityWrapper("Please tell me about Perplexity", true, false, false)
+	output, err := PerplexityWrapper("Please tell me about Perplexity", true, false, false)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
 	if !strings.Contains(output, "# Perplexity") {
 		t.Errorf("Expected Perplexity header in output, got: %s", output)
 	}
@@ -29,7 +32,10 @@ func TestPerplexityWrapper(t *testing.T) {
 }
 
 func TestPerplexityWrapperQuietMode(t *testing.T) {
-	output := PerplexityWrapper("Please tell me about Perplexity", true, false, true)
+	output, err := PerplexityWrapper("Please tell me about Perplexity", true, false, true)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
 	if strings.Contains(output, "# Perplexity") {
 		t.Errorf("Quiet mode should not contain header, got: %s", output)
 	}
@@ -97,7 +103,10 @@ func TestCallPerplexityAPIGeminiVersion(t *testing.T) {
 		// The mock response in CallPerplexityAPI is hardcoded and different
 		// from the one served by our httptest server. This test checks the
 		// hardcoded mock response.
-		result, _ := CallPerplexityAPI(prompt, true)
+		result, _, err := CallPerplexityAPI(prompt, true)
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
 
 		if result == "" {
 			t.Fatal("Expected a non-empty mock response, got empty string")
@@ -105,7 +114,7 @@ func TestCallPerplexityAPIGeminiVersion(t *testing.T) {
 
 		// Deserialize the hardcoded mock response
 		var response PerplexityResponse
-		err := json.Unmarshal([]byte(result), &response)
+		err = json.Unmarshal([]byte(result), &response)
 		if err != nil {
 			t.Fatalf("Failed to unmarshal hardcoded mock JSON response: %v\nResponse was: %s", err, result)
 		}

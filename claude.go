@@ -54,6 +54,16 @@ func ListAnthropicModels() string {
 	return builder.String()
 }
 
+// claudeMaxTokens returns a max_tokens value within the model's output limit,
+// since the API rejects requests that exceed it (haiku 4.5 caps at 64K;
+// current sonnet/opus models support 128K, which requires streaming — which we use)
+func claudeMaxTokens(model string) int64 {
+	if strings.Contains(model, "haiku") {
+		return 64000
+	}
+	return 128000
+}
+
 func ClaudeGenChatCompletionMock() *ClaudeResponse {
 	return &ClaudeResponse{
 		Content:      "This is a mocked Claude response.",
@@ -64,9 +74,9 @@ func ClaudeGenChatCompletionMock() *ClaudeResponse {
 	}
 }
 
-func ClaudeLowerWrapper(promptText string, mock bool) *ClaudeResponse {
+func ClaudeLowerWrapper(promptText string, mock bool) (*ClaudeResponse, error) {
 	if mock {
-		return ClaudeGenChatCompletionMock()
+		return ClaudeGenChatCompletionMock(), nil
 	}
 
 	client := anthropic.NewClient(option.WithAPIKey(GetClaudeAPIKeyOrBail()))
@@ -74,7 +84,7 @@ func ClaudeLowerWrapper(promptText string, mock bool) *ClaudeResponse {
 	// Use streaming API
 	stream := client.Messages.NewStreaming(context.TODO(), anthropic.MessageNewParams{
 		Model:     anthropic.Model(DefaultModels.Claude),
-		MaxTokens: 64000,
+		MaxTokens: claudeMaxTokens(DefaultModels.Claude),
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(anthropic.NewTextBlock(promptText)),
 		},
@@ -113,25 +123,11 @@ func ClaudeLowerWrapper(promptText string, mock bool) *ClaudeResponse {
 	}
 
 	if err := stream.Err(); err != nil {
-		Fatalf("Streaming error: %s", err)
+		return nil, fmt.Errorf("streaming error: %w", err)
 	}
 
 	response.Content = contentBuilder.String()
-	return response
-}
-
-func ClaudeMiddleWrapper(promptText string, mock bool) string {
-	fromTime := time.Now()
-
-	r := ClaudeLowerWrapper(promptText, mock)
-
-	duration := time.Since(fromTime)
-
-	totalTokens := r.InputTokens + r.OutputTokens
-	fmtStr := "Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds"
-	status := fmt.Sprintf(fmtStr, r.Model, totalTokens, r.StopReason, duration.Seconds())
-
-	return fmt.Sprintf("\n%s\n\n%s", status, r.Content)
+	return response, nil
 }
 
 // claudeChat handles interactive chat with conversation history
@@ -153,7 +149,7 @@ func claudeChat(history []ChatMessage, userInput string, model string) (string, 
 	// Use streaming API
 	stream := client.Messages.NewStreaming(context.TODO(), anthropic.MessageNewParams{
 		Model:     anthropic.Model(model),
-		MaxTokens: 8192,
+		MaxTokens: claudeMaxTokens(model),
 		Messages:  messages,
 	})
 	defer stream.Close()
@@ -179,10 +175,13 @@ func claudeChat(history []ChatMessage, userInput string, model string) (string, 
 }
 
 // ClaudeWrapper is the top-level function for Claude
-func ClaudeWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {
+func ClaudeWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) (string, error) {
 	fromTime := time.Now()
 
-	r := ClaudeLowerWrapper(promptText, mock)
+	r, err := ClaudeLowerWrapper(promptText, mock)
+	if err != nil {
+		return "", err
+	}
 
 	duration := time.Since(fromTime)
 
@@ -206,11 +205,11 @@ func ClaudeWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool
 	}
 
 	if quietMode {
-		return r.Content
+		return r.Content, nil
 	}
 
 	fmtStr := "Model: %s, %d tokens used, finished due to: %s, duration: %.3f seconds"
 	status := fmt.Sprintf(fmtStr, r.Model, totalTokens, r.StopReason, duration.Seconds())
 
-	return fmt.Sprintf("# Claude\n\n%s\n\n%s\n\n", status, r.Content)
+	return fmt.Sprintf("# Claude\n\n%s\n\n%s\n\n", status, r.Content), nil
 }

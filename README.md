@@ -131,7 +131,7 @@ options:
 -lg	list Gemini models
 -lc	list OpenAI models
 -la	list Anthropic models
--t	test API keys (note: they will be displayed)
+-t	test API keys (shown masked, last four characters only)
 -l	enable logging (disabled automatically when routing through LLM Proxy)
 	logs model interactions to ~/gollm_logs.jsonl
 -q	quiet mode: turns off logging and all non-essential output
@@ -181,10 +181,10 @@ Setup:
 
 Default models:
 - Perplexity: sonar-pro
-- ChatGPT: gpt-5.4
+- ChatGPT: gpt-5.5
 - Gemini: models/gemini-3.1-pro-preview
 - Cerebras: gpt-oss-120b
-- Claude: claude-sonnet-4-6
+- Claude: claude-sonnet-5
 - DeepSeek: deepseek-v4-pro
 ```
 

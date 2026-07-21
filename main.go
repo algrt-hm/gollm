@@ -31,6 +31,7 @@ type optionsStruct struct {
 	useCerebras    bool
 	useClaude      bool
 	useDeepseek    bool
+	modelsImplied  bool // true when no model flags were given and all providers defaulted on
 	bypassLLMProxy bool
 	useLLMProxy    bool
 	logToJsonl     bool
@@ -70,7 +71,6 @@ var quietMode bool = false
 
 var logPath string
 var logPathToPrint string
-var connected bool
 var outputRenderMu sync.Mutex
 
 // So we can point this to a noop for testing
@@ -106,6 +106,13 @@ func CheckInternetHTTP() (bool, error) {
 
 	// Unexpected status code might indicate an issue (like a captive portal)
 	return false, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+}
+
+// isConnectedToInternet is only consulted when printing the usage screen,
+// so the (up to 500ms) check is done lazily rather than on every invocation
+func isConnectedToInternet() bool {
+	ok, err := CheckInternetHTTP()
+	return err == nil && ok
 }
 
 func Print(s string) (int, error) {
@@ -147,7 +154,11 @@ func strSliceContains(s []string, str string) bool {
 }
 
 func Fatalf(format string, a ...any) {
-	fmt.Printf(format, a...)
+	msg := fmt.Sprintf(format, a...)
+	if !strings.HasSuffix(msg, "\n") {
+		msg += "\n"
+	}
+	fmt.Fprint(os.Stderr, msg)
 	os.Exit(1)
 }
 
@@ -223,9 +234,29 @@ func GetDeepseekAPIKeyOrBail() string {
 	return ret
 }
 
+// maskAPIKey hides all but the last four characters of an API key
+// so -t output is safe to show on a shared screen
+func maskAPIKey(key string) string {
+	if key == "" {
+		return "(not set)"
+	}
+	runes := []rune(key)
+	if len(runes) <= 4 {
+		return "****"
+	}
+	return "****" + string(runes[len(runes)-4:])
+}
+
 func PrintAPIKeys() {
-	fmtStr := "\nPerplexity API key is: %+v\nChatGPT API key is: %+v\nGemini API key is: %+v\nClaude API key is: %+v\nDeepSeek API key is: %+v\n"
-	fmt.Printf(fmtStr, getPerplexityAPIKey(), getChatGPTAPIKey(), getGeminiAPIKey(), getClaudeAPIKey(), getDeepseekAPIKey())
+	fmtStr := "\nPerplexity API key is: %s\nChatGPT API key is: %s\nGemini API key is: %s\nCerebras API key is: %s\nClaude API key is: %s\nDeepSeek API key is: %s\n"
+	fmt.Printf(fmtStr,
+		maskAPIKey(getPerplexityAPIKey()),
+		maskAPIKey(getChatGPTAPIKey()),
+		maskAPIKey(getGeminiAPIKey()),
+		maskAPIKey(getCerebrasAPIKey()),
+		maskAPIKey(getClaudeAPIKey()),
+		maskAPIKey(getDeepseekAPIKey()),
+	)
 }
 
 func RenderWithGlamour(text string) {
@@ -265,7 +296,7 @@ func fmtDefaultModels() string {
 	) + "\n"
 }
 
-func PrintUsage(connectedToInternet bool, logPath string) string {
+func PrintUsage(connectedToInternet bool, logPathDisplay string) string {
 	// The logging path is dynamic
 
 	usageFmt := `%s [options] [model]
@@ -277,7 +308,7 @@ options:
 -lg	list Gemini models
 -lc	list OpenAI models
 -la	list Anthropic models
--t	test API keys (note: they will be displayed)
+-t	test API keys (shown masked, last four characters only)
 -l	enable logging (disabled automatically when routing through LLM Proxy)
 	logs model interactions to %s
 -q	quiet mode: turns off logging and all non-essential output
@@ -372,7 +403,7 @@ export LLM_PROXY_URL="http://localhost:8000/v1"
 	usageFmt += "\n"
 
 	// os.Args[0] may be a nonsensical if testing
-	usage := fmt.Sprintf(usageFmt, "gollm", logPathToPrint, perplexityApiKey, chatGPTApiKey, geminiApiKey, cerebrasApiKey, claudeApiKey, deepseekApiKey)
+	usage := fmt.Sprintf(usageFmt, "gollm", logPathDisplay, perplexityApiKey, chatGPTApiKey, geminiApiKey, cerebrasApiKey, claudeApiKey, deepseekApiKey)
 	return usage + fmtDefaultModels()
 }
 
@@ -408,6 +439,46 @@ func readPipe() string {
 }
 
 func callModels(o optionsStruct) {
+
+	// When no models were explicitly requested we default to all providers;
+	// skip any without an API key rather than exiting (the proxy handles auth itself)
+	if o.modelsImplied && !o.useLLMProxy {
+		skip := func(name string) { fmt.Fprintf(os.Stderr, "Skipping %s (no API key set)\n", name) }
+
+		if o.useChatGPT && getChatGPTAPIKey() == "" {
+			o.useChatGPT = false
+			skip("ChatGPT")
+		}
+
+		if o.useGemini && getGeminiAPIKey() == "" {
+			o.useGemini = false
+			skip("Gemini")
+		}
+
+		if o.usePerplexity && getPerplexityAPIKey() == "" {
+			o.usePerplexity = false
+			skip("Perplexity")
+		}
+
+		if o.useCerebras && getCerebrasAPIKey() == "" {
+			o.useCerebras = false
+			skip("Cerebras")
+		}
+
+		if o.useClaude && getClaudeAPIKey() == "" {
+			o.useClaude = false
+			skip("Claude")
+		}
+
+		if o.useDeepseek && getDeepseekAPIKey() == "" {
+			o.useDeepseek = false
+			skip("DeepSeek")
+		}
+
+		if !(o.useChatGPT || o.useGemini || o.usePerplexity || o.useCerebras || o.useClaude || o.useDeepseek) {
+			Fatalf("No API keys set — set at least one of the environment variables listed in gollm -h")
+		}
+	}
 
 	// Tell the user which models we're using
 	var modelsNameSlice []string
@@ -487,12 +558,17 @@ func callModels(o optionsStruct) {
 			defer wg.Done()
 			var statusLine string
 			var output string
+			var err error
 			if o.useLLMProxy {
 				statusLine = "Hitting Perplexity API (via proxy) ..."
-				output = LLMProxyWrapperForProvider("Perplexity", o.promptText, proxyModelName(ProviderPerplexity, DefaultModels.Perplexity), false, o.logToJsonl, o.quietMode)
+				output, err = LLMProxyWrapperForProvider("Perplexity", o.promptText, proxyModelName(ProviderPerplexity, DefaultModels.Perplexity), false, o.logToJsonl, o.quietMode)
 			} else {
 				statusLine = "Hitting Perplexity API ..."
-				output = PerplexityWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
+				output, err = PerplexityWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
+			}
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Perplexity failed: %v\n", err)
+				return
 			}
 			printAndRenderAtomically(statusLine, output)
 		}()
@@ -504,12 +580,17 @@ func callModels(o optionsStruct) {
 			defer wg.Done()
 			var statusLine string
 			var output string
+			var err error
 			if o.useLLMProxy {
 				statusLine = "Hitting ChatGPT API (via proxy) ..."
-				output = LLMProxyWrapperForProvider("ChatGPT", o.promptText, proxyModelName(ProviderChatGPT, string(DefaultModels.ChatGPT)), false, o.logToJsonl, o.quietMode)
+				output, err = LLMProxyWrapperForProvider("ChatGPT", o.promptText, proxyModelName(ProviderChatGPT, string(DefaultModels.ChatGPT)), false, o.logToJsonl, o.quietMode)
 			} else {
 				statusLine = "Hitting ChatGPT API ..."
-				output = ChatGPTWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
+				output, err = ChatGPTWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
+			}
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "ChatGPT failed: %v\n", err)
+				return
 			}
 			printAndRenderAtomically(statusLine, output)
 		}()
@@ -521,12 +602,17 @@ func callModels(o optionsStruct) {
 			defer wg.Done()
 			var statusLine string
 			var output string
+			var err error
 			if o.useLLMProxy {
 				statusLine = "Hitting Gemini API (via proxy) ..."
-				output = LLMProxyWrapperForProvider("Gemini", o.promptText, proxyModelName(ProviderGemini, DefaultModels.Gemini), false, o.logToJsonl, o.quietMode)
+				output, err = LLMProxyWrapperForProvider("Gemini", o.promptText, proxyModelName(ProviderGemini, DefaultModels.Gemini), false, o.logToJsonl, o.quietMode)
 			} else {
 				statusLine = "Hitting Gemini API ..."
-				output = GeminiWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
+				output, err = GeminiWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
+			}
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Gemini failed: %v\n", err)
+				return
 			}
 			printAndRenderAtomically(statusLine, output)
 		}()
@@ -538,12 +624,17 @@ func callModels(o optionsStruct) {
 			defer wg.Done()
 			var statusLine string
 			var output string
+			var err error
 			if o.useLLMProxy {
 				statusLine = "Hitting Cerebras API (via proxy) ..."
-				output = LLMProxyWrapperForProvider("Cerebras", o.promptText, proxyModelName(ProviderCerebras, DefaultModels.Cerebras), false, o.logToJsonl, o.quietMode)
+				output, err = LLMProxyWrapperForProvider("Cerebras", o.promptText, proxyModelName(ProviderCerebras, DefaultModels.Cerebras), false, o.logToJsonl, o.quietMode)
 			} else {
 				statusLine = "Hitting Cerebras API ..."
-				output = CerebrasWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
+				output, err = CerebrasWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
+			}
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Cerebras failed: %v\n", err)
+				return
 			}
 			printAndRenderAtomically(statusLine, output)
 		}()
@@ -555,12 +646,17 @@ func callModels(o optionsStruct) {
 			defer wg.Done()
 			var statusLine string
 			var output string
+			var err error
 			if o.useLLMProxy {
 				statusLine = "Hitting Claude API (via proxy) ..."
-				output = LLMProxyWrapperForProvider("Claude", o.promptText, proxyModelName(ProviderClaude, DefaultModels.Claude), false, o.logToJsonl, o.quietMode)
+				output, err = LLMProxyWrapperForProvider("Claude", o.promptText, proxyModelName(ProviderClaude, DefaultModels.Claude), false, o.logToJsonl, o.quietMode)
 			} else {
 				statusLine = "Hitting Claude API ..."
-				output = ClaudeWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
+				output, err = ClaudeWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
+			}
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Claude failed: %v\n", err)
+				return
 			}
 			printAndRenderAtomically(statusLine, output)
 		}()
@@ -572,12 +668,17 @@ func callModels(o optionsStruct) {
 			defer wg.Done()
 			var statusLine string
 			var output string
+			var err error
 			if o.useLLMProxy {
 				statusLine = "Hitting DeepSeek API (via proxy) ..."
-				output = LLMProxyWrapperForProvider("DeepSeek", o.promptText, proxyModelName(ProviderDeepseek, DefaultModels.Deepseek), false, o.logToJsonl, o.quietMode)
+				output, err = LLMProxyWrapperForProvider("DeepSeek", o.promptText, proxyModelName(ProviderDeepseek, DefaultModels.Deepseek), false, o.logToJsonl, o.quietMode)
 			} else {
 				statusLine = "Hitting DeepSeek API ..."
-				output = DeepseekWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
+				output, err = DeepseekWrapper(o.promptText, false, o.logToJsonl, o.quietMode)
+			}
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "DeepSeek failed: %v\n", err)
+				return
 			}
 			printAndRenderAtomically(statusLine, output)
 		}()
@@ -610,7 +711,7 @@ func core(o optionsStruct) {
 
 	// PrintUsage
 	if o.printUsage {
-		fmt.Println(PrintUsage(connected, logPath))
+		fmt.Println(PrintUsage(isConnectedToInternet(), logPathToPrint))
 		os.Exit(0)
 	}
 
@@ -655,17 +756,6 @@ func init() {
 
 	// For tidiness we replace $HOME with ~ in logPath
 	logPathToPrint = strings.Replace(logPath, getHomeDir(), "~", 1)
-
-	// We do this here because we want the result in PrintUsage()
-	temp, err := CheckInternetHTTP()
-
-	if err != nil {
-		connected = false
-		return
-	}
-
-	// update global
-	connected = temp
 }
 
 func main() {
@@ -675,7 +765,7 @@ func main() {
 
 	// No arguments provided — show usage
 	if argc <= 1 {
-		fmt.Println(PrintUsage(connected, logPath))
+		fmt.Println(PrintUsage(isConnectedToInternet(), logPathToPrint))
 		os.Exit(0)
 	}
 
@@ -706,8 +796,15 @@ func main() {
 	}
 
 	// get whatever is being piped in (but not in interactive mode)
+	// a prompt argument and piped content are joined with a newline
 	if !opts.interactive {
-		opts.promptText += readPipe()
+		if piped := readPipe(); piped != "" {
+			if opts.promptText != "" {
+				opts.promptText += "\n" + piped
+			} else {
+				opts.promptText = piped
+			}
+		}
 	}
 
 	// main bit of functionality

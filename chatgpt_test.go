@@ -12,7 +12,10 @@ func TestChatGPTWrapper(t *testing.T) {
 	}
 	quietMode = false
 
-	output := ChatGPTWrapper("Mock prompt", true, false, false)
+	output, err := ChatGPTWrapper("Mock prompt", true, false, false)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
 	if !strings.Contains(output, "# ChatGPT") {
 		t.Errorf("Expected ChatGPT header in output, got: %s", output)
 	}
@@ -22,7 +25,10 @@ func TestChatGPTWrapper(t *testing.T) {
 }
 
 func TestChatGPTWrapperQuietMode(t *testing.T) {
-	output := ChatGPTWrapper("Mock prompt", true, false, true)
+	output, err := ChatGPTWrapper("Mock prompt", true, false, true)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
 	if strings.Contains(output, "# ChatGPT") {
 		t.Errorf("Quiet mode should not contain header, got: %s", output)
 	}

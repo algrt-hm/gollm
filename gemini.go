@@ -100,13 +100,13 @@ func collectSupportedModels(ctx context.Context, client *genai.Client) ([]ModelI
 
 // StringifyGeminiResponse is a helper function to print the response content
 // it returns response, finishReason, safetyRating
-func StringifyGeminiResponse(resp *genai.GenerateContentResponse, model string) (string, string, string) {
+func StringifyGeminiResponse(resp *genai.GenerateContentResponse, model string) (string, string, string, error) {
 	var response strings.Builder
 	var finishReason string = ""
 	var safetyRating strings.Builder
 
 	if resp == nil || len(resp.Candidates) == 0 {
-		return "Received an empty response.", "", ""
+		return "Received an empty response.", "", "", nil
 	}
 	// impliedly the response is not nil or of length 0
 
@@ -119,11 +119,11 @@ func StringifyGeminiResponse(resp *genai.GenerateContentResponse, model string) 
 					response.WriteString(string(textPart))
 				} else {
 					// It's not genai.Text (could be ImageData, FunctionCall, etc.)
-					Fatalf("Part is not genai.Text, it's type %T\n", part)
+					return "", "", "", fmt.Errorf("part is not genai.Text, it's type %T", part)
 				}
 			}
 		} else {
-			return "Candidate content is nil.", "", ""
+			return "Candidate content is nil.", "", "", nil
 		}
 
 		// If there's a safety rating then stringify it
@@ -146,7 +146,7 @@ func StringifyGeminiResponse(resp *genai.GenerateContentResponse, model string) 
 		finishReason = "None"
 	}
 
-	return response.String(), finishReason, safetyRating.String()
+	return response.String(), finishReason, safetyRating.String(), nil
 }
 
 func MockGenerateContentResponse() *genai.GenerateContentResponse {
@@ -194,14 +194,14 @@ func GeminiCallAPI(modelName string, promptText string, ctx context.Context, cli
 	resp, err := model.GenerateContent(ctx, genai.Text(promptText))
 
 	if err != nil {
-		Fatalf("Failed to generate content: %v", err)
+		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}
 
-	return resp, err
+	return resp, nil
 }
 
 // GeminiLowerWrapper calls the Gemini API
-func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Client, mock bool, logToJsonl bool, quietMode bool) string {
+func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Client, mock bool, logToJsonl bool, quietMode bool) (string, error) {
 	// Start the timer
 	startTime := time.Now()
 	modelName := DefaultModels.Gemini
@@ -209,11 +209,18 @@ func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Cl
 	resp, err := GeminiCallAPI(modelName, promptText, ctx, client, mock)
 
 	if err != nil {
-		Fatalf("Some issue: %s", err)
+		return "", err
 	}
 
-	buffer, finishReason, safetyRating := StringifyGeminiResponse(resp, modelName)
-	totalTokenCount := resp.UsageMetadata.TotalTokenCount
+	buffer, finishReason, safetyRating, err := StringifyGeminiResponse(resp, modelName)
+	if err != nil {
+		return "", err
+	}
+
+	var totalTokenCount int32
+	if resp.UsageMetadata != nil {
+		totalTokenCount = resp.UsageMetadata.TotalTokenCount
+	}
 	duration := time.Since(startTime)
 
 	// Log successful model call only if logging is enabled
@@ -234,17 +241,17 @@ func GeminiLowerWrapper(promptText string, ctx context.Context, client *genai.Cl
 	}
 
 	if quietMode {
-		return buffer
+		return buffer, nil
 	}
 
 	if safetyRating != "" {
-		return fmt.Sprintf("\nModel: %s, %d tokens used, finished due to: %s, safety rating: %s, duration: %.3f seconds\n\n%s\n", modelName, totalTokenCount, finishReason, safetyRating, duration.Seconds(), buffer)
+		return fmt.Sprintf("\nModel: %s, %d tokens used, finished due to: %s, safety rating: %s, duration: %.3f seconds\n\n%s\n", modelName, totalTokenCount, finishReason, safetyRating, duration.Seconds(), buffer), nil
 	} else {
-		return fmt.Sprintf("\nModel: %s, %d tokens used, finished due to: %s, duration: %.3f seconds\n\n%s\n", modelName, totalTokenCount, finishReason, duration.Seconds(), buffer)
+		return fmt.Sprintf("\nModel: %s, %d tokens used, finished due to: %s, duration: %.3f seconds\n\n%s\n", modelName, totalTokenCount, finishReason, duration.Seconds(), buffer), nil
 	}
 }
 
-func GeminiMiddleWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {
+func GeminiMiddleWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) (string, error) {
 	// --- Get API Key ---
 	apiKey := GetGeminiAPIKeyOrBail()
 
@@ -254,15 +261,13 @@ func GeminiMiddleWrapper(promptText string, mock bool, logToJsonl bool, quietMod
 	// Use option.WithAPIKey to authenticate with an API key
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
-		Fatalf("Failed to create client: %v", err)
+		return "", fmt.Errorf("failed to create client: %w", err)
 	}
 
 	// Ensure the client is closed when main function finishes
 	defer client.Close()
 
-	output := GeminiLowerWrapper(promptText, ctx, client, mock, logToJsonl, quietMode)
-
-	return output
+	return GeminiLowerWrapper(promptText, ctx, client, mock, logToJsonl, quietMode)
 }
 
 // geminiChat handles interactive chat with conversation history
@@ -299,14 +304,21 @@ func geminiChat(history []ChatMessage, userInput string, modelName string) (stri
 		return "", fmt.Errorf("failed to send message: %w", err)
 	}
 
-	response, _, _ := StringifyGeminiResponse(resp, modelName)
+	response, _, _, err := StringifyGeminiResponse(resp, modelName)
+	if err != nil {
+		return "", err
+	}
 	return response, nil
 }
 
-func GeminiWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) string {
-	s := GeminiMiddleWrapper(promptText, mock, logToJsonl, quietMode) + "\n"
-	if quietMode {
-		return s
+func GeminiWrapper(promptText string, mock bool, logToJsonl bool, quietMode bool) (string, error) {
+	s, err := GeminiMiddleWrapper(promptText, mock, logToJsonl, quietMode)
+	if err != nil {
+		return "", err
 	}
-	return fmt.Sprintf("# Gemini\n%s\n", s)
+	s += "\n"
+	if quietMode {
+		return s, nil
+	}
+	return fmt.Sprintf("# Gemini\n%s\n", s), nil
 }
