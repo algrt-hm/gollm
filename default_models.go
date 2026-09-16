@@ -25,9 +25,9 @@ var DefaultModels = struct {
 }{
 	Perplexity: "sonar-pro",
 	Gemini:     "models/gemini-3.1-pro-preview",
-	ChatGPT:    "gpt-5.5",
+	ChatGPT:    "gpt-5.6-sol",
 	Cerebras:   cerebrasModel,
-	Claude:     "claude-sonnet-5",
+	Claude:     "claude-opus-5",
 	Deepseek:   "deepseek-v4-pro",
 }
 
@@ -42,6 +42,7 @@ var AvailableModels = struct {
 	Deepseek   []string
 }{
 	Claude: []string{
+		"claude-opus-5",
 		"claude-sonnet-5",
 		"claude-sonnet-4-6",
 		"claude-opus-4-8",
@@ -49,6 +50,7 @@ var AvailableModels = struct {
 		"claude-haiku-4-5",
 	},
 	ChatGPT: []string{
+		"gpt-5.6-sol",
 		"gpt-5.5",
 		"gpt-5.4",
 		"gpt-5.4-mini",

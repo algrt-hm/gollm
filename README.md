@@ -181,10 +181,10 @@ Setup:
 
 Default models:
 - Perplexity: sonar-pro
-- ChatGPT: gpt-5.5
+- ChatGPT: gpt-5.6-sol
 - Gemini: models/gemini-3.1-pro-preview
 - Cerebras: gpt-oss-120b
-- Claude: claude-sonnet-5
+- Claude: claude-opus-5
 - DeepSeek: deepseek-v4-pro
 ```
 
