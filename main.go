@@ -12,6 +12,9 @@ import (
 	"time"
 
 	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/glamour/styles"
+	"github.com/muesli/termenv"
+	"golang.org/x/term"
 )
 
 // Types etc
@@ -259,9 +262,50 @@ func PrintAPIKeys() {
 	)
 }
 
+// isDarkBackground reports whether a terminal background colour, as returned
+// by termenv.BackgroundColor(), should be treated as dark.
+//
+// When termenv can query the terminal (OSC 11) it returns an RGB colour and
+// the lightness test is reliable. Under tmux/screen it cannot query, so it
+// falls back to the COLORFGBG environment variable and returns a raw ANSI
+// palette index instead. Themes such as Solarized remap those 16 slots
+// (Solarized Dark's background is slot 8, "bright black"), so converting the
+// index through the standard xterm palette gives the wrong answer: slot 8 is
+// #808080, lightness 0.502, which termenv classes as light. Vim's rule for
+// COLORFGBG is used instead: slots 0-6 and 8 are dark, everything else light.
+func isDarkBackground(c termenv.Color) bool {
+	switch v := c.(type) {
+	case termenv.ANSIColor:
+		return v <= 6 || v == 8
+	case termenv.NoColor:
+		return true
+	default:
+		_, _, l := termenv.ConvertToRGB(c).Hsl()
+		return l < 0.5
+	}
+}
+
+// glamourStyleOption picks the glamour style once and caches it: the
+// terminal query has a timeout and interactive mode renders many times.
+//
+// GLAMOUR_STYLE (as used by glow) overrides detection: "dark", "light",
+// "notty", "dracula", ... or a path to a style JSON file.
+var glamourStyleOption = sync.OnceValue(func() glamour.TermRendererOption {
+	if s := os.Getenv("GLAMOUR_STYLE"); s != "" {
+		return glamour.WithStylePath(s)
+	}
+	if !term.IsTerminal(int(os.Stdout.Fd())) {
+		return glamour.WithStandardStyle(styles.NoTTYStyle)
+	}
+	if isDarkBackground(termenv.BackgroundColor()) {
+		return glamour.WithStandardStyle(styles.DarkStyle)
+	}
+	return glamour.WithStandardStyle(styles.LightStyle)
+})
+
 func RenderWithGlamour(text string) {
 	// Use Glamour for rendering
-	renderer, err := glamour.NewTermRenderer(glamour.WithAutoStyle(), glamour.WithWordWrap(0))
+	renderer, err := glamour.NewTermRenderer(glamourStyleOption(), glamour.WithWordWrap(0))
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating renderer: %v\n", err)

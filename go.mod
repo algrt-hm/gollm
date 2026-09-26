@@ -6,6 +6,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.14.0
 	github.com/charmbracelet/glamour v0.10.0
 	github.com/google/generative-ai-go v0.16.0
+	github.com/muesli/termenv v0.16.0
 	github.com/openai/openai-go/v2 v2.1.0
 	golang.org/x/term v0.45.0
 	google.golang.org/api v0.264.0
@@ -42,7 +43,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
-	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.2.0 // indirect

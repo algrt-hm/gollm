@@ -42,7 +42,7 @@ Interactive mode supports multiline input with history and line editing:
 | `Ctrl+U` | Clear from cursor to start of line |
 | `Delete` | Delete character at cursor |
 
-Note: Commands (`exit`, `quit`, `/help`, etc.) submit immediately on Enter.
+Note: Slash commands (`/exit`, `/help`, etc.) submit immediately on Enter.
 
 **Troubleshooting:** If your terminal appears corrupted after exiting (garbled text, no echo), run `reset` or `stty sane` to restore it.
 
@@ -53,7 +53,7 @@ Once in interactive mode, you can use these commands:
 | Command | Description |
 |---------|-------------|
 | `/help` | Show available commands |
-| `exit`, `quit`, or `/exit` | End the session |
+| `/exit` or `/quit` | End the session |
 | `/memory` | Toggle memory mode (when enabled, chat history is sent to the model) |
 | `/model` | List available models for current provider |
 | `/model <number>` | Switch to a different model (e.g., `/model 2`) |
@@ -218,6 +218,10 @@ For installation of latest go on Ubuntu see: https://algrt.hm/2024-09-29-recent-
 - For usage of the API see: https://console.cloud.google.com/apis/api/generativelanguage.googleapis.com/metrics
 
 ## FAQs
+
+*The output colours are wrong (e.g. unreadable text under tmux)?*
+
+gollm picks a dark or light colour scheme by asking the terminal for its background colour. Inside tmux or screen that query isn't possible, so it falls back to the `COLORFGBG` variable that iTerm2 and others set, treating ANSI slots 0-6 and 8 as dark (the same rule Vim uses, which handles Solarized). To force a scheme, set `GLAMOUR_STYLE` to `dark`, `light`, `notty`, `dracula`, `tokyo-night`, or a path to a [glamour](https://github.com/charmbracelet/glamour) style JSON file.
 
 *How do I set environment variables in Windows?*
 

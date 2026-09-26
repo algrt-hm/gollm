@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/muesli/termenv"
 )
 
 // checkCarriageReturns reads all the .go files in this directory and reports
@@ -563,4 +565,33 @@ func TestInteractiveModeFlags(t *testing.T) {
 			t.Errorf("Expected error for -b combo flag in interactive mode")
 		}
 	})
+}
+
+func TestIsDarkBackground(t *testing.T) {
+	cases := []struct {
+		name string
+		c    termenv.Color
+		want bool
+	}{
+		// COLORFGBG fallback (tmux/screen): raw ANSI slots, Vim's rule.
+		{"ansi 0 black", termenv.ANSIColor(0), true},
+		{"ansi 6 cyan", termenv.ANSIColor(6), true},
+		{"ansi 7 white", termenv.ANSIColor(7), false},
+		{"ansi 8 solarized dark bg", termenv.ANSIColor(8), true},
+		{"ansi 15 solarized light bg", termenv.ANSIColor(15), false},
+		// OSC 11 query succeeded: real RGB values.
+		{"rgb solarized dark base03", termenv.RGBColor("#002b36"), true},
+		{"rgb solarized light base3", termenv.RGBColor("#fdf6e3"), false},
+		{"rgb black", termenv.RGBColor("#000000"), true},
+		{"rgb white", termenv.RGBColor("#ffffff"), false},
+		// Unknown: assume dark, the common terminal default.
+		{"no colour", termenv.NoColor{}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isDarkBackground(tc.c); got != tc.want {
+				t.Errorf("isDarkBackground(%v) = %v, want %v", tc.c, got, tc.want)
+			}
+		})
+	}
 }

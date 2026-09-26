@@ -464,14 +464,22 @@ func (r *MultilineReader) readLineFallback() (string, error) {
 	return strings.TrimSuffix(input, "\n"), err
 }
 
+// isExitCommand reports whether input (already trimmed) ends the session.
+func isExitCommand(input string) bool {
+	switch input {
+	case "/exit", "/quit":
+		return true
+	}
+	return false
+}
+
 // isImmediateCommand checks if the input is a command that should submit on Enter
 func isImmediateCommand(input string) bool {
 	input = strings.TrimSpace(input)
 	if input == "" {
 		return false
 	}
-	// Exit commands
-	if input == "exit" || input == "quit" || input == "/exit" {
+	if isExitCommand(input) {
 		return true
 	}
 	// Slash commands
@@ -528,8 +536,7 @@ func handleCommand(input string, state *SessionState) CommandResult {
 		return CommandResult{Action: ActionEmpty}
 	}
 
-	// Exit commands
-	if input == "exit" || input == "quit" || input == "/exit" {
+	if isExitCommand(input) {
 		return CommandResult{Action: ActionExit, Message: "*Goodbye!*"}
 	}
 
@@ -856,7 +863,7 @@ func InteractiveSession(o optionsStruct) {
 
 **Commands:**
 - ` + "`/help`" + ` - show this help message
-- ` + "`exit`" + ` or ` + "`quit`" + ` - end the session
+- ` + "`/exit`" + ` or ` + "`/quit`" + ` - end the session
 - ` + "`/memory`" + ` - toggle memory mode (sends chat history to model)
 - ` + "`/model`" + ` - list available models
 - ` + "`/model <number>`" + ` - switch to a different model

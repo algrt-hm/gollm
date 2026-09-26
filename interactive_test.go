@@ -134,11 +134,22 @@ func TestHandleCommand(t *testing.T) {
 	}
 
 	t.Run("exit_commands", func(t *testing.T) {
-		for _, cmd := range []string{"exit", "quit", "/exit"} {
+		for _, cmd := range []string{"/exit", "/quit"} {
 			state := newState()
 			result := handleCommand(cmd, state)
 			if result.Action != ActionExit {
 				t.Errorf("%q: expected ActionExit, got %v", cmd, result.Action)
+			}
+		}
+		// Bare words are ordinary input for the model, not commands.
+		for _, cmd := range []string{"exit", "quit"} {
+			state := newState()
+			result := handleCommand(cmd, state)
+			if result.Action != ActionNone {
+				t.Errorf("%q: expected ActionNone, got %v", cmd, result.Action)
+			}
+			if isImmediateCommand(cmd) {
+				t.Errorf("%q: should not submit immediately", cmd)
 			}
 		}
 	})
