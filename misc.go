@@ -57,6 +57,10 @@ func handleOpts(argv []string, argc int) (optionsStruct, error) {
 			opts.printUsage = true
 		}
 
+		if isFlag(each, "-v") || isFlag(each, "--version") {
+			opts.printVersion = true
+		}
+
 		if isFlag(each, "-t") {
 			opts.printAPIKeys = true
 		}

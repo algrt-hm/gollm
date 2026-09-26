@@ -45,6 +45,7 @@ type optionsStruct struct {
 	readLogIdx int
 
 	printUsage          bool
+	printVersion        bool
 	printAPIKeys        bool
 	listGeminiModels    bool
 	listOpenAIModels    bool
@@ -73,6 +74,9 @@ const testingSuppressOutput = true
 var quietMode bool = false
 
 var logPath string
+
+// version is set at build time via -ldflags "-X main.version=..."
+var version = "dev"
 var logPathToPrint string
 var outputRenderMu sync.Mutex
 
@@ -347,6 +351,7 @@ func PrintUsage(connectedToInternet bool, logPathDisplay string) string {
 
 options:
 -h	show (this) help
+-v	show version
 -i	interactive chat mode (requires single model, auto-selects first available)
 -x	bypass LLM Proxy (proxy is used automatically when LLM_PROXY_URL is set)
 -lg	list Gemini models
@@ -817,6 +822,11 @@ func main() {
 
 	if err != nil {
 		Fatalf("Issue reading arguments: %s", err)
+	}
+
+	if opts.printVersion {
+		fmt.Println("gollm", version)
+		os.Exit(0)
 	}
 
 	// various bits of functionality use the quietMode global so we update this here

@@ -485,6 +485,18 @@ func TestNoArgsShowsUsage(t *testing.T) {
 	}
 }
 
+func TestVersionFlag(t *testing.T) {
+	for _, flag := range []string{"-v", "--version"} {
+		opts, err := handleOpts([]string{"gollm", flag}, 2)
+		if err != nil {
+			t.Fatalf("handleOpts(%s) returned error: %v", flag, err)
+		}
+		if !opts.printVersion {
+			t.Errorf("Expected %s to set printVersion", flag)
+		}
+	}
+}
+
 func TestCheckCarriageReturns(t *testing.T) {
 	// check testSillyWin returns false
 	// This test assumes there are no .go files with carriage returns in the current directory.

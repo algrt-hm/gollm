@@ -126,6 +126,7 @@ gollm [options] [model]
 
 options:
 -h	show (this) help
+-v	show version
 -i	interactive chat mode (requires single model, auto-selects first available)
 -x	bypass LLM Proxy (proxy is used automatically when LLM_PROXY_URL is set)
 -lg	list Gemini models

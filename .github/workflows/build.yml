@@ -85,8 +85,9 @@ jobs:
           # -v: verbose output
           # -o: specify the output file name
           # -ldflags="-s -w": strip debugging information to create a smaller binary
+          # -X main.version: stamp the tag (or branch name for non-tag builds) into the binary
           # ./... : build the main package in the current directory or subdirectories
-          go build -v -o "${BINARY_NAME}" -ldflags="-s -w" ./...
+          go build -v -o "${BINARY_NAME}" -ldflags="-s -w -X main.version=${{ github.ref_name }}" ./...
 
       # Step 4: Upload the binary as a build artifact (for regular pushes)
       - name: Upload Artifact

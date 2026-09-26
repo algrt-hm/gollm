@@ -7,7 +7,7 @@ SOURCES = $(wildcard *.go)
 # Default target:
 # Build only if sources are newer than binary
 $(BINARY): $(SOURCES)
-	go build -o $(BINARY) .
+	go build -ldflags "-X main.version=$$(git describe --tags --always --dirty)" -o $(BINARY) .
 
 help:
 	@echo "make        - Build (if needed) and run gollm"
